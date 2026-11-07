@@ -24,29 +24,34 @@
     <nav id="menu" class="nav" aria-label="Navigation principale">
       <a href="index.html" data-nav="accueil">Accueil</a>
       <a href="services.html" data-nav="services">Services</a>
-      <a href="tarifs.html" data-nav="tarifs">Tarifs</a>
-      <a href="a-propos.html" data-nav="apropos">À propos</a>
+      <a href="realisations.html" data-nav="realisations">Réalisations</a>
+      <a href="professionnels.html" data-nav="pros">Pros</a>
       <a href="contact.html" data-nav="contact">Contact</a>
     </nav>
   </div>
 </header>
 <main id="contenu">
 
-<section class="section wrap">
-  <p class="sur">Services</p>
-  <div class="gradient-bar"></div>
-  <h1>Les textiles pris en charge</h1>
-  <p class="lead">Sept familles. Le bouton de chaque page dit si vous pouvez réserver tout de suite ou s'il faut un devis.</p>
-  <div class="grid-6" style="margin-top:1.5rem">
-    <a class="card" href="canapes.html"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 12V8.5A2.5 2.5 0 0 1 6.5 6h11A2.5 2.5 0 0 1 20 8.5V12"/><path d="M3 12h18v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M7 19v1.5M17 19v1.5"/></svg></span><h3>Canapés et sofas</h3><p>Prix selon places et configuration.</p></a>
-    <a class="card" href="matelas.html"><span class="icon"><svg viewBox="0 0 24 24"><path d="M3 18V8M3 14h18v4M21 14V10a3 3 0 0 0-3-3H11"/><path d="M3 18h18"/></svg></span><h3>Matelas</h3><p>Une ou deux faces.</p></a>
-    <a class="card" href="tapis.html"><span class="icon"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1"/><path d="M8 6v12M12 6v12M16 6v12"/></svg></span><h3>Tapis</h3><p>Mesure en m², puis devis.</p></a>
-    <a class="card" href="moquettes.html"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 16c2-4 4-4 6 0s4 4 6 0 4-4 4 0"/><path d="M4 19h16"/></svg></span><h3>Moquettes</h3><p>Surface posée, devis.</p></a>
-    <a class="card" href="fauteuils.html"><span class="icon"><svg viewBox="0 0 24 24"><path d="M7 11V5h10v6"/><path d="M6 11h12v3H6z"/><path d="M8 14v6M16 14v6"/></svg></span><h3>Fauteuils</h3><p>49 € l'unité.</p></a>
-    <a class="card" href="chaises.html"><span class="icon"><svg viewBox="0 0 24 24"><path d="M8 10V6h8v4"/><path d="M6 10h12v4H6z"/><path d="M8 14l-1 6M16 14l1 6"/></svg></span><h3>Chaises rembourrées</h3><p>25 €, ou 90 € les six.</p></a>
-    <a class="card" href="coussins.html"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 12V8.5A2.5 2.5 0 0 1 6.5 6h11A2.5 2.5 0 0 1 20 8.5V12"/><path d="M3 12h18v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M7 19v1.5M17 19v1.5"/></svg></span><h3>Coussins</h3><p>Quantité et matière, sur devis.</p></a>
+<section class="section pick-page">
+  <div class="wrap">
+    <div class="pick-head">
+      <div class="pick-kicker"><span class="pick-num">1</span><h1>Vos textiles à nettoyer</h1></div>
+      <p>Indiquez la quantité de chaque support.</p>
+    </div>
+    <div class="pick-grid" id="pick-grid"></div>
+    <div class="pick-offers">
+      <p><strong>90 € les 6 chaises</strong>Au-delà, 25 € la chaise.</p>
+      <p><strong>Acompte 50 %</strong>Sur les prix fermes, à la réservation.</p>
+    </div>
+    <p class="pick-more">Tapis, moquette, coussin et tête de lit restent sur devis. <a href="professionnels.html">Professionnels</a> · <a href="tarifs.html">grille complète</a></p>
   </div>
 </section>
+<div class="pick-dock" id="pick-dock">
+  <div class="wrap">
+    <div><strong id="pick-sum">0 €</strong><span id="pick-count">Aucun support</span></div>
+    <a class="btn btn-ocean" id="pick-go" href="reserver.html">Continuer</a>
+  </div>
+</div>
 
 </main>
 <footer class="site-footer">
@@ -55,7 +60,7 @@
     <div>
       <p>prolongez la vie de vos textiles</p>
       <p class="fine"><span data-area></span> · <span data-hours></span></p>
-      <p class="fine">Horaires indicatifs, à confirmer. <a data-email href="mailto:contact@carpeo.fr">contact@carpeo.fr</a> · <span data-phone></span></p>
+      <p class="fine"><a data-email href="mailto:contact@carpeo.fr">contact@carpeo.fr</a> · <span data-phone></span></p>
       <nav class="legal-links" aria-label="Liens de pied de page">
         <a href="mentions-legales.html">Mentions légales</a>
         <a href="confidentialite.html">Confidentialité</a>
@@ -77,6 +82,7 @@
 <script src="js/config.js"></script>
 <script src="js/consent.js"></script>
 <script src="js/main.js"></script>
+<script src="js/services.js"></script>
 
 </body>
 </html>

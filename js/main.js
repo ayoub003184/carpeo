@@ -108,10 +108,24 @@
       el.addEventListener("click", function () { reach("wa"); });
     });
     document.querySelectorAll("[data-call]").forEach(function (el) {
+      if (cfg.phone && el.tagName === "A") el.setAttribute("href", "tel:" + cfg.phone.replace(/\s/g, ""));
       el.addEventListener("click", function (e) {
         if (!cfg.phone) { e.preventDefault(); reach("phone"); }
       });
     });
+    var tax = document.getElementById("tax-price");
+    if (tax) {
+      var outA = document.getElementById("tax-off");
+      var outB = document.getElementById("tax-due");
+      function paintTax() {
+        var n = Math.max(0, parseFloat(String(tax.value).replace(",", ".")) || 0);
+        var off = Math.round(n * 50) / 100;
+        outA.textContent = off.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+        outB.textContent = (Math.round((n - off) * 100) / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+      }
+      tax.addEventListener("input", paintTax);
+      paintTax();
+    }
 
     var form = document.getElementById("contact-form");
     if (form) {

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Contact — CARPEO</title>
-<meta name="description" content="Contacter CARPEO par e-mail, téléphone ou WhatsApp. Zone d'intervention à confirmer.">
+<meta name="description" content="Contactez CARPEO à Paris et en Île-de-France : téléphone, WhatsApp, e-mail, 7 jours sur 7.">
 <link rel="icon" href="assets/favicon-32.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,8 +24,8 @@
     <nav id="menu" class="nav" aria-label="Navigation principale">
       <a href="index.html" data-nav="accueil">Accueil</a>
       <a href="services.html" data-nav="services">Services</a>
-      <a href="tarifs.html" data-nav="tarifs">Tarifs</a>
-      <a href="a-propos.html" data-nav="apropos">À propos</a>
+      <a href="realisations.html" data-nav="realisations">Réalisations</a>
+      <a href="professionnels.html" data-nav="pros">Pros</a>
       <a href="contact.html" data-nav="contact">Contact</a>
     </nav>
   </div>
@@ -33,40 +33,33 @@
 <main id="contenu">
 
 <section class="section wrap">
-  <p class="sur">Contact</p>
-  <div class="gradient-bar"></div>
-  <h1>Nous écrire</h1>
   <div class="contact-grid">
-    <div class="panel">
+    <div class="listen">
+      <h1>Un besoin, une question ?</h1>
+      <p class="script">Nous sommes à votre écoute.</p>
+      <p>Une demande sur mesure ou un doute sur la prestation ? Expliquez-nous votre projet, nous vous aiderons à trouver le service adapté.</p>
       <form id="contact-form">
-        <div>
-          <label for="c-nom">Nom</label>
-          <input id="c-nom" name="nom" required autocomplete="name">
-          <p class="field-error" hidden>Indiquez votre nom.</p>
+        <div class="grid-2">
+          <div><label for="c-nom">Votre nom</label><input id="c-nom" required placeholder="Prénom et nom" autocomplete="name"><p class="field-error" hidden>Indiquez votre nom.</p></div>
+          <div><label for="c-email">Votre e-mail</label><input id="c-email" type="email" required placeholder="vous@exemple.fr" autocomplete="email"><p class="field-error" hidden>Indiquez un e-mail valide.</p></div>
         </div>
-        <div>
-          <label for="c-email">E-mail</label>
-          <input id="c-email" name="email" type="email" required autocomplete="email">
-          <p class="field-error" hidden>Indiquez un e-mail valide.</p>
+        <div class="grid-2">
+          <div><label for="c-tel">Téléphone (facultatif)</label><input id="c-tel" type="tel" placeholder="Votre numéro"></div>
+          <div><label for="c-need">Votre besoin</label><select id="c-need"><option>Une question</option><option>Canapé</option><option>Matelas</option><option>Tapis</option><option>Moquette</option><option>Professionnel</option><option>Demande sur mesure</option></select></div>
         </div>
-        <div>
-          <label for="c-msg">Message</label>
-          <textarea id="c-msg" name="message" required></textarea>
-          <p class="field-error" hidden>Écrivez votre message.</p>
-        </div>
-        <button class="btn btn-ocean" type="submit">Envoyer</button>
+        <label for="c-msg">Votre message</label>
+        <textarea id="c-msg" required placeholder="Parlez-nous de votre projet, de votre adresse d'intervention et de vos besoins..."></textarea>
+        <p class="field-error" hidden>Écrivez votre message.</p>
+        <button class="btn btn-ocean" type="submit">Envoyer mon message</button>
       </form>
-      <p id="contact-done" hidden>Message enregistré sur cette page seulement. Aucun e-mail n'est parti : le serveur n'est pas encore branché.</p>
+      <p id="contact-done" hidden>Message conservé ici. Écrivez aussi sur WhatsApp au +33 6 15 14 45 66.</p>
     </div>
     <div>
-      <p><strong>E-mail</strong><br><a data-email href="mailto:contact@carpeo.fr">contact@carpeo.fr</a></p>
-      <p class="note">Adresse proposée pour la France. La charte graphique mentionne contact@carpeo.dz : à trancher.</p>
-      <p><strong>Téléphone</strong><br><span data-phone></span></p>
+      <p><strong>Téléphone</strong><br><a data-phone href="tel:+33615144566">+33 6 15 14 45 66</a></p>
       <p><strong>WhatsApp</strong><br><button type="button" class="mini" data-wa>Ouvrir WhatsApp</button></p>
+      <p><strong>E-mail</strong><br><a data-email href="mailto:contact@carpeo.fr">contact@carpeo.fr</a></p>
       <p><strong>Horaires</strong><br><span data-hours></span></p>
-      <p class="note">Horaires indicatifs, à confirmer.</p>
       <p><strong>Zone</strong><br><span data-area></span></p>
-      <div class="photo-slot" style="margin-top:1rem"><p>Carte de la zone réelle, dès que les communes desservies sont connues.</p></div>
     </div>
   </div>
 </section>
@@ -78,7 +71,7 @@
     <div>
       <p>prolongez la vie de vos textiles</p>
       <p class="fine"><span data-area></span> · <span data-hours></span></p>
-      <p class="fine">Horaires indicatifs, à confirmer. <a data-email href="mailto:contact@carpeo.fr">contact@carpeo.fr</a> · <span data-phone></span></p>
+      <p class="fine"><a data-email href="mailto:contact@carpeo.fr">contact@carpeo.fr</a> · <span data-phone></span></p>
       <nav class="legal-links" aria-label="Liens de pied de page">
         <a href="mentions-legales.html">Mentions légales</a>
         <a href="confidentialite.html">Confidentialité</a>

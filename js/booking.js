@@ -17,6 +17,7 @@
         if (places === "3") return 139;
         return null;
       }
+      if (item.config === "panoramique" || item.config === "convertible") return null;
       if (places === "2") return 89;
       if (places === "3") return 99;
       return null;
@@ -34,7 +35,7 @@
   }
 
   function needsQuote(item) {
-    return item.cat === "tapis" || item.cat === "moquette" || item.cat === "coussin" || item.cat === "autre" || priceOf(item) == null;
+    return item.cat === "tapis" || item.cat === "moquette" || item.cat === "coussin" || item.cat === "tete" || item.cat === "autre" || priceOf(item) == null;
   }
 
   function area(item) {
@@ -52,7 +53,8 @@
     return { cat: "canape", places: "3", config: "droit", matiere: "", qty: "1", faces: "1", length: "", width: "", surface: "", size: "", desc: "", stain: "", stainCount: "", age: "", odor: "non", use: "", caution: "" };
   }
 
-  var state = { items: [blank()], step: 0, slot: "", files: {} };
+  var PROMOS = { BIENVENUE10: { type: "pct", value: 10 }, CARPEO20: { type: "eur", value: 20 }, FIDELITE15: { type: "pct", value: 15 }, NOEL2026: { type: "pct", value: 10 } };
+  var state = { items: [blank()], step: 0, slot: "", files: {}, promo: "", avance: "non", promoMsg: "" };
 
   function el(html) {
     var t = document.createElement("template");
@@ -66,13 +68,13 @@
 
   function itemCard(item, index) {
     var cat = '<select id="cat-' + index + '" data-k="cat">' +
-      [["canape", "Canapé ou sofa"], ["matelas", "Matelas"], ["fauteuil", "Fauteuil"], ["chaise", "Chaise rembourrée"], ["tapis", "Tapis"], ["moquette", "Moquette"], ["coussin", "Coussins"], ["autre", "Autre textile"]]
+      [["canape", "Canapé"], ["matelas", "Matelas"], ["tapis", "Tapis"], ["moquette", "Moquette"], ["chaise", "Chaises"], ["fauteuil", "Fauteuils"], ["tete", "Tête de lit"], ["autre", "Autre demande"]]
         .map(function (o) { return '<option value="' + o[0] + '"' + (item.cat === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
       "</select>";
     var extra = "";
     if (item.cat === "canape") {
-      extra += field("Nombre de places", '<select id="places-' + index + '" data-k="places"><option value="2"' + (item.places === "2" ? " selected" : "") + '>2 places</option><option value="3"' + (item.places === "3" ? " selected" : "") + '>3 places</option></select>', "places-" + index);
-      extra += field("Configuration", '<select id="config-' + index + '" data-k="config"><option value="droit">Droit</option><option value="angle"' + (item.config === "angle" ? " selected" : "") + '>Angle</option><option value="meridienne"' + (item.config === "meridienne" ? " selected" : "") + '>Méridienne</option><option value="autre"' + (item.config === "autre" ? " selected" : "") + '>Autre</option></select>', "config-" + index);
+      extra += field("Nombre de places", '<select id="places-' + index + '" data-k="places"><option value="2"' + (item.places === "2" ? " selected" : "") + '>2 places — 89 €</option><option value="3"' + (item.places === "3" ? " selected" : "") + '>3 places — 99 €</option><option value="4"' + (item.places === "4" ? " selected" : "") + '>4 places — sur devis</option></select>', "places-" + index);
+      extra += field("Configuration", '<select id="config-' + index + '" data-k="config"><option value="droit">Droit</option><option value="angle"' + (item.config === "angle" ? " selected" : "") + '>Angle</option><option value="meridienne"' + (item.config === "meridienne" ? " selected" : "") + '>Méridienne</option><option value="panoramique"' + (item.config === "panoramique" ? " selected" : "") + '>Panoramique — sur devis</option><option value="convertible"' + (item.config === "convertible" ? " selected" : "") + '>Convertible — sur devis</option></select>', "config-" + index);
       extra += field("Revêtement, si connu", '<input id="mat-' + index + '" data-k="matiere" value="' + esc(item.matiere) + '" placeholder="Tissu, velours, cuir…">', "mat-" + index);
     }
     if (item.cat === "matelas") {
@@ -80,7 +82,7 @@
       extra += field("Faces à nettoyer", '<select id="faces-' + index + '" data-k="faces"><option value="1">Une face — 79 €</option><option value="2"' + (item.faces === "2" ? " selected" : "") + '>Deux faces — 89 €</option></select>', "faces-" + index);
       extra += field("Dimensions", '<input id="size-' + index + '" data-k="size" value="' + esc(item.size) + '" placeholder="140 × 190, 160 × 200…">', "size-" + index);
     }
-    if (item.cat === "fauteuil" || item.cat === "chaise" || item.cat === "coussin") {
+    if (item.cat === "fauteuil" || item.cat === "chaise" || item.cat === "coussin" || item.cat === "tete") {
       extra += field("Quantité", '<input id="qty-' + index + '" data-k="qty" type="number" min="1" value="' + item.qty + '">', "qty-" + index);
       extra += field(item.cat === "coussin" ? "Taille approximative" : "Revêtement ou particularité", '<input id="mat-' + index + '" data-k="matiere" value="' + esc(item.matiere) + '">', "mat-" + index);
     }
@@ -151,8 +153,8 @@
   function steps() {
     var q = quoteMode();
     return q
-      ? ["Textiles", "Coordonnées", "Envoi du devis"]
-      : ["Textiles", "Coordonnées", "Créneau", "Acompte"];
+      ? ["Prestation et photos", "Adresse", "Envoi du devis"]
+      : ["Prestation et photos", "Adresse", "Rendez-vous", "Récapitulatif"];
   }
 
   function render() {
@@ -184,7 +186,11 @@
         "</div>" +
         field("Complément, étage, ascenseur", '<input id="compl">', "compl") +
         field("Instructions d'accès", '<input id="acces">', "acces") +
+        field("Étage", '<input id="etage" placeholder="0, 2, 4…">', "etage") +
+        field("Ascenseur", '<select id="ascenseur"><option value="non">Non</option><option value="oui">Oui</option></select>', "ascenseur") +
+        field("Comment souhaitez-vous être contacté ?", '<select id="pref"><option value="whatsapp">WhatsApp</option><option value="telephone">Téléphone</option><option value="email">E-mail</option></select>', "pref") +
         field("Comment avez-vous connu CARPEO ?", '<select id="heard">' + HEARD.map(function (h) { return "<option>" + h + "</option>"; }).join("") + "</select>", "heard") +
+        '<p class="note" id="zone-note">Zone : Paris et Île-de-France (75, 77, 78, 91, 92, 93, 94, 95).</p>' +
         '<label><input type="checkbox" id="rgpd" style="width:auto"> J\'ai lu la <a href="confidentialite.html">politique de confidentialité</a>. Mes informations servent à traiter cette demande.</label>' +
         '<p class="field-error" id="coord-error" hidden>Indiquez les champs obligatoires et acceptez l\'information sur vos données.</p>' +
         "</div>";
@@ -207,22 +213,39 @@
     if (!quoteMode() && state.step === 2) renderCalendar();
   }
 
+  function quotePrice() {
+    var base = total();
+    var code = (state.promo || "").toUpperCase();
+    var promo = PROMOS[code];
+    var off = 0;
+    if (promo) off = promo.type === "pct" ? Math.round(base * promo.value) / 100 : Math.min(promo.value, base);
+    var net = Math.round((base - off) * 100) / 100;
+    var avance = state.avance === "oui";
+    var due = avance ? Math.round(net * 50) / 100 : net;
+    var deposit = Math.round(due * 50) / 100;
+    return { base: base, off: off, net: net, avance: avance, due: due, deposit: deposit, rest: Math.round((due - deposit) * 100) / 100, code: promo ? code : "" };
+  }
+
   function summaryHtml() {
     var q = quoteMode();
-    var t = total();
-    var deposit = Math.round(t * 50) / 100;
-    var rest = Math.round((t - deposit) * 100) / 100;
+    var money = quotePrice();
     var lines = state.items.map(function (item, i) {
       var p = priceOf(item);
       return "<li>Textile " + (i + 1) + " — " + item.cat + (p == null ? " — devis" : " — " + euro.format(p)) + "</li>";
     }).join("");
-    var money = q
-      ? '<p>Ce dossier demande une estimation. Aucun paiement n\'est demandé maintenant. Pour un tapis, l\'indication commence à 39 €, sans que ce montant soit un prix ferme.</p>'
-      : '<dl class="summary"><dt>Total</dt><dd>' + euro.format(t) + '</dd><dt>Acompte 50 %</dt><dd>' + euro.format(deposit) + '</dd><dt>Reste à payer le jour de l\'intervention</dt><dd>' + euro.format(rest) + '</dd></dl>' +
-        '<div class="stripe-box"><strong>Paiement Stripe</strong><p>Écran préparé pour Stripe. Aucune carte n\'est demandée et aucun débit n\'est fait tant que les clés Stripe ne sont pas connectées.</p><p class="note">Créneau : ' + (state.slot || "—") + ". Réservation temporaire : 15 minutes.</p></div>" +
-        '<label><input type="checkbox" id="cgv" style="width:auto"> J\'accepte les <a href="cgv.html">conditions</a>, y compris l\'affichage de l\'acompte avant paiement. Le texte définitif des annulations reste à valider juridiquement.</label>' +
+    var promoBox = '<label for="promo">Vous avez un code promo ?</label><div class="btn-row"><input id="promo" value="' + esc(state.promo) + '" placeholder="BIENVENUE10" style="max-width:220px"><button type="button" class="btn btn-ghost" id="apply-promo">Appliquer</button></div><p class="note">' + esc(state.promoMsg) + '</p>';
+    var avanceBox = '<fieldset><legend>Souhaitez-vous bénéficier de l\'avance immédiate ?</legend><label><input type="radio" name="avance" value="oui"' + (state.avance === "oui" ? " checked" : "") + '> Oui, je souhaite bénéficier de l\'avance immédiate</label><label><input type="radio" name="avance" value="non"' + (state.avance !== "oui" ? " checked" : "") + '> Non, je souhaite régler la totalité de la prestation</label><p class="note">Si vous choisissez oui, prévoyez 5 à 10 minutes à l\'arrivée pour finaliser l\'inscription Urssaf avec nous. Le montant dépend de votre éligibilité.</p></fieldset>';
+    var pay = q
+      ? '<p>Ce dossier demande une estimation. Aucun paiement n\'est demandé maintenant.</p>'
+      : promoBox + avanceBox +
+        '<dl class="summary"><dt>Prix</dt><dd>' + euro.format(money.base) + '</dd>' +
+        (money.off ? '<dt>Réduction ' + money.code + '</dt><dd>− ' + euro.format(money.off) + '</dd>' : '') +
+        (money.avance ? '<dt>Avantage indicatif 50 %</dt><dd>' + euro.format(money.net - money.due) + '</dd><dt>Reste à charge</dt><dd>' + euro.format(money.due) + '</dd>' : '') +
+        '<dt>Acompte 50 %</dt><dd>' + euro.format(money.deposit) + '</dd><dt>Solde</dt><dd>' + euro.format(money.rest) + '</dd></dl>' +
+        '<div class="stripe-box"><strong>Paiement</strong><p>Écran préparé pour Stripe ou un autre prestataire. Aucune carte n\'est demandée.</p><p class="note">Créneau : ' + (state.slot || "—") + '.</p></div>' +
+        '<label><input type="checkbox" id="cgv" style="width:auto"> J\'accepte les <a href="cgv.html">conditions</a> avant de confirmer.</label>' +
         '<p class="field-error" id="pay-error" hidden>Acceptez les conditions pour continuer la simulation.</p>';
-    return '<div class="panel"><h3>' + (q ? "Votre demande de devis" : "Récapitulatif") + '</h3><ul>' + lines + "</ul>" + money +
+    return '<div class="panel"><h3>' + (q ? "Votre demande de devis" : "Récapitulatif") + '</h3><ul>' + lines + "</ul>" + pay +
       '<div class="btn-row"><button type="button" class="btn btn-ghost" id="prev">Retour</button><button type="button" class="btn btn-ocean" id="confirm">' +
       (q ? "Envoyer la demande" : "Simuler le paiement de l'acompte") + "</button></div></div>";
   }
@@ -238,7 +261,7 @@
       var label = day.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
       var iso = day.getFullYear() + "-" + String(day.getMonth() + 1).padStart(2, "0") + "-" + String(day.getDate()).padStart(2, "0");
       html += "<p><strong>" + label + "</strong></p><div class='slots'>";
-      ["08:30", "10:30", "13:30", "15:30"].forEach(function (time) {
+      ["08:00", "11:00", "14:00", "17:00"].forEach(function (time) {
         var id = iso + " " + time;
         var blocked = (day.getDate() + time.charCodeAt(0)) % 5 === 0;
         var pressed = state.slot === id;
@@ -260,6 +283,7 @@
     return {
       nom: val("nom"), prenom: val("prenom"), email: val("email"), tel: val("tel"),
       adresse: val("adresse"), cp: val("cp"), ville: val("ville"), compl: val("compl"),
+      etage: val("etage"), ascenseur: val("ascenseur"), pref: val("pref"),
       acces: val("acces"), heard: val("heard")
     };
   }
@@ -312,6 +336,17 @@
     };
     var confirm = document.getElementById("confirm");
     if (confirm) confirm.onclick = finish;
+    var apply = document.getElementById("apply-promo");
+    if (apply) apply.onclick = function () {
+      state.promo = document.getElementById("promo").value.trim().toUpperCase();
+      state.promoMsg = PROMOS[state.promo] ? "Code appliqué." : "Ce code n'est pas reconnu. Exemples : BIENVENUE10, CARPEO20, FIDELITE15, NOEL2026.";
+      var picked = document.querySelector('input[name="avance"]:checked');
+      if (picked) state.avance = picked.value;
+      render();
+    };
+    document.querySelectorAll('input[name="avance"]').forEach(function (r) {
+      r.addEventListener("change", function () { state.avance = r.value; render(); });
+    });
   }
 
   function restoreCustomer() {
@@ -328,6 +363,13 @@
     var mail = document.getElementById("email").value;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) ok = false;
     if (!document.getElementById("rgpd").checked) ok = false;
+    var cp = document.getElementById("cp").value.trim();
+    var idf = /^(75|77|78|91|92|93|94|95)\d{3}$/.test(cp);
+    var zone = document.getElementById("zone-note");
+    if (cp && !idf) {
+      ok = false;
+      if (zone) zone.textContent = "Ce code postal n'est pas en Île-de-France (75, 77, 78, 91, 92, 93, 94, 95).";
+    }
     document.getElementById("coord-error").hidden = ok;
     return ok;
   }
@@ -347,8 +389,7 @@
     var ref = "CAR-" + Math.random().toString(36).slice(2, 6).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
     var key = Math.random().toString(36).slice(2, 8).toUpperCase();
     var q = quoteMode();
-    var t = total();
-    var deposit = Math.round(t * 50) / 100;
+    var money = quotePrice();
     var dossier = {
       ref: ref,
       key: key,
@@ -357,9 +398,11 @@
       items: state.items,
       customer: state.customer,
       slot: q ? "" : state.slot,
-      total: q ? null : t,
-      deposit: q ? null : deposit,
-      balance: q ? null : Math.round((t - deposit) * 100) / 100,
+      total: q ? null : money.net,
+      deposit: q ? null : money.deposit,
+      balance: q ? null : money.rest,
+      promo: money.code,
+      avance: state.avance,
       created: new Date().toISOString()
     };
     var all = [];
@@ -368,13 +411,13 @@
     localStorage.setItem("carpeo-dossiers", JSON.stringify(all));
     sessionStorage.removeItem("carpeo-hold");
     if (window.carpeoTrack) {
-      window.carpeoTrack(q ? "Lead" : "Purchase", q ? { kind: "devis" } : { value: deposit, currency: "EUR", kind: "acompte-simule" });
+      window.carpeoTrack(q ? "Lead" : "Purchase", q ? { kind: "devis" } : { value: money.deposit, currency: "EUR", kind: "acompte-simule" });
     }
     var root = document.getElementById("booking");
     root.innerHTML = '<div class="panel"><p class="sur">Confirmation</p><h2>' + (q ? "Demande envoyée" : "Réservation préparée") + '</h2>' +
       '<p>Conservez ces deux codes. Ils ouvrent le suivi de ce dossier sur cet appareil.</p>' +
       '<dl class="summary"><dt>Référence</dt><dd>' + ref + '</dd><dt>Clé</dt><dd>' + key + '</dd><dt>Statut</dt><dd>' + dossier.status + '</dd></dl>' +
-      (q ? "" : "<p>Total " + euro.format(t) + " · acompte " + euro.format(deposit) + " · reste " + euro.format(dossier.balance) + ".</p>") +
+      (q ? "" : "<p>Total " + euro.format(money.net) + " · acompte " + euro.format(money.deposit) + " · reste " + euro.format(money.rest) + ".</p>") +
       '<p class="note">Aucune notification réelle n\'est partie : il n\'y a pas encore de serveur, d\'e-mail ni de compte Stripe.</p>' +
       '<a class="btn btn-ocean" href="suivi.html?ref=' + encodeURIComponent(ref) + '&cle=' + encodeURIComponent(key) + '">Voir le suivi</a></div>';
   }
@@ -382,7 +425,19 @@
   document.addEventListener("DOMContentLoaded", function () {
     if (!document.getElementById("booking")) return;
     var params = new URLSearchParams(location.search);
-    if (params.get("parcours") === "devis") state.items = [{ cat: "tapis", places: "3", config: "droit", matiere: "", qty: "1", faces: "1", length: "", width: "", surface: "", size: "", desc: "", stain: "", stainCount: "", age: "", odor: "non", use: "", caution: "" }];
+    var stored = null;
+    try { stored = JSON.parse(sessionStorage.getItem("carpeo-picks") || "null"); } catch (e) { stored = null; }
+    if (stored && stored.length) {
+      state.items = stored.map(function (p) {
+        var b = blank();
+        b.cat = p.cat;
+        b.places = p.places || b.places;
+        b.config = p.config || b.config;
+        b.faces = p.faces || b.faces;
+        b.qty = String(p.qty || 1);
+        return b;
+      });
+    } else if (params.get("parcours") === "devis") state.items = [{ cat: "tapis", places: "3", config: "droit", matiere: "", qty: "1", faces: "1", length: "", width: "", surface: "", size: "", desc: "", stain: "", stainCount: "", age: "", odor: "non", use: "", caution: "" }];
     render();
   });
 })();
