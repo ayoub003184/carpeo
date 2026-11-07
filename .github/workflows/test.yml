@@ -11,6 +11,7 @@ jobs:
         with:
           node-version: 24
       - run: node --check server.mjs
+      - run: node --check 'api/[...path].mjs'
       - run: node --check js/booking.js
       - run: node --check js/admin.js
       - run: node --test tests/backend.test.mjs
