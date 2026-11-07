@@ -202,7 +202,7 @@
         field("Ascenseur", '<select id="ascenseur"><option value="non">Non</option><option value="oui">Oui</option></select>', "ascenseur") +
         field("Comment souhaitez-vous être contacté ?", '<select id="pref"><option value="whatsapp">WhatsApp</option><option value="telephone">Téléphone</option><option value="email">E-mail</option></select>', "pref") +
         field("Comment avez-vous connu CARPEO ?", '<select id="heard">' + HEARD.map(function (h) { return "<option>" + h + "</option>"; }).join("") + "</select>", "heard") +
-        '<p class="note" id="zone-note">Zone : Paris et Île-de-France (75, 77, 78, 91, 92, 93, 94, 95).</p>' +
+        '<p class="note" id="zone-note">Intervention à domicile et en entreprise.</p>' +
         '<label><input type="checkbox" id="rgpd" style="width:auto"> J\'ai lu la <a href="confidentialite.html">politique de confidentialité</a>. Mes informations servent à traiter cette demande.</label>' +
         '<p class="field-error" id="coord-error" hidden>Indiquez les champs obligatoires et acceptez l\'information sur vos données.</p>' +
         "</div>";
@@ -375,13 +375,6 @@
     var mail = document.getElementById("email").value;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) ok = false;
     if (!document.getElementById("rgpd").checked) ok = false;
-    var cp = document.getElementById("cp").value.trim();
-    var idf = /^(75|77|78|91|92|93|94|95)\d{3}$/.test(cp);
-    var zone = document.getElementById("zone-note");
-    if (cp && !idf) {
-      ok = false;
-      if (zone) zone.textContent = "Ce code postal n'est pas en Île-de-France (75, 77, 78, 91, 92, 93, 94, 95).";
-    }
     document.getElementById("coord-error").hidden = ok;
     return ok;
   }
@@ -401,8 +394,14 @@
     var button = document.getElementById("confirm");
     button.disabled = true; button.textContent = "Envoi en cours…";
     var dossier;
+    var urlParams = new URLSearchParams(location.search);
+    var attribution = {
+      source: urlParams.get("utm_source") || (state.customer && state.customer.heard) || "Site web",
+      medium: urlParams.get("utm_medium") || "",
+      campaign: urlParams.get("utm_campaign") || ""
+    };
     try {
-      var response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ items: state.items, customer: state.customer, slot: q ? "" : state.slot, promo: money.code, advance: state.avance, photos: await photoData() }) });
+      var response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ items: state.items, customer: state.customer, slot: q ? "" : state.slot, promo: money.code, advance: state.avance, attribution: attribution, photos: await photoData() }) });
       dossier = await response.json();
       if (!response.ok) throw new Error(dossier.error || "La demande n’a pas pu être enregistrée.");
     } catch (error) {
@@ -415,10 +414,37 @@
     var root = document.getElementById("booking");
     root.innerHTML = '<div class="panel"><p class="sur">Confirmation</p><h2>' + (q ? "Demande envoyée" : "Réservation préparée") + '</h2>' +
       '<p>Conservez ces deux codes. Ils ouvrent le suivi de ce dossier sur cet appareil.</p>' +
-      '<dl class="summary"><dt>Référence</dt><dd>' + dossier.ref + '</dd><dt>Clé d’accès</dt><dd>' + dossier.key + '</dd><dt>Statut</dt><dd>' + dossier.status + '</dd></dl>' +
+      '<dl class="summary"><dt>Référence</dt><dd>' + dossier.ref + '</dd><dt>Clé d’accès</dt><dd>' + dossier.key + '</dd><dt>Statut</dt><dd id="conf-status">' + dossier.status + '</dd></dl>' +
       (q ? "" : "<p>Total " + euro.format(dossier.total) + " · acompte " + euro.format(dossier.deposit) + " · reste " + euro.format(dossier.balance) + ".</p>") +
       '<p class="note">Conservez la référence et la clé pour consulter ce dossier de manière sécurisée.</p>' +
-      '<a class="btn btn-ocean" href="suivi.html?ref=' + encodeURIComponent(dossier.ref) + '&cle=' + encodeURIComponent(dossier.key) + '">Voir le suivi</a></div>';
+      '<div class="btn-row">' +
+      (!q && dossier.deposit ? '<button type="button" class="btn btn-ocean" id="pay-now-btn">Payer l\'acompte en ligne (' + euro.format(dossier.deposit) + ')</button>' : '') +
+      '<a class="btn ' + (q ? 'btn-ocean' : 'btn-ghost') + '" href="suivi.html?ref=' + encodeURIComponent(dossier.ref) + '&cle=' + encodeURIComponent(dossier.key) + '">Voir le suivi</a>' +
+      '</div><p id="pay-now-msg" class="note" style="margin-top:0.6rem"></p></div>';
+
+    var payNow = document.getElementById("pay-now-btn");
+    if (payNow) {
+      payNow.onclick = async function () {
+        payNow.disabled = true;
+        payNow.textContent = "Paiement en cours…";
+        try {
+          var pr = await fetch("/api/payments/create-intent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ref: dossier.ref, key: dossier.key, kind: "deposit" })
+          });
+          var pdata = await pr.json();
+          if (!pr.ok) throw new Error(pdata.error || "Erreur paiement");
+          document.getElementById("conf-status").textContent = "Confirmé";
+          document.getElementById("pay-now-msg").textContent = "Acompte réglé avec succès. Votre rendez-vous est confirmé !";
+          payNow.remove();
+        } catch (err) {
+          payNow.disabled = false;
+          payNow.textContent = "Réessayer le paiement (" + euro.format(dossier.deposit) + ")";
+          document.getElementById("pay-now-msg").textContent = err.message;
+        }
+      };
+    }
   }
 
   document.addEventListener("DOMContentLoaded", async function () {

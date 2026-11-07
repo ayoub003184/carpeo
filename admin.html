@@ -1,6 +1,90 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Back-office — CARPEO</title><link rel="icon" href="assets/favicon-32.png"><link rel="stylesheet" href="css/styles.css"></head>
-<body><a class="skip" href="#contenu">Aller au contenu</a><header class="site-header" data-header><div class="wrap header-bar"><a class="brand" href="index.html"><img class="brand-full" src="assets/logo-compact.webp" alt="CARPEO" width="181" height="132"><img class="brand-mark" src="assets/logo-symbol.webp" alt="" width="56" height="48"></a><nav class="nav"><a href="index.html">Voir le site</a><a href="tarifs.html">Tarifs publics</a><button type="button" class="mini" id="logout" hidden>Déconnexion</button></nav></div></header>
-<main id="contenu" class="section wrap"><p class="sur">Back-office sécurisé</p><div class="gradient-bar"></div><h1>Piloter CARPEO</h1><p id="admin-status" role="status" class="note"></p>
-<section id="login-panel" class="panel" style="max-width:520px"><h2>Connexion</h2><form id="login-form"><label for="admin-email">E-mail</label><input id="admin-email" type="email" value="admin@carpeo.local" required autocomplete="username"><label for="admin-password">Mot de passe</label><input id="admin-password" type="password" required autocomplete="current-password"><button class="btn btn-ocean" type="submit">Se connecter</button></form></section>
-<section id="admin-app" hidden><div class="admin-tabs btn-row" role="tablist"><button class="mini is-on" data-tab="dashboard">Tableau de bord</button><button class="mini" data-tab="bookings">Dossiers</button><button class="mini" data-tab="contacts">Contacts</button><button class="mini" data-tab="planning">Planning</button><button class="mini" data-tab="messages">Messages</button><button class="mini" data-tab="pricing">Tarifs</button><button class="mini" data-tab="audit">Journal</button></div><div id="admin-view" style="margin-top:1rem"></div></section>
-</main><footer class="site-footer"><div class="wrap"><p><a href="index.html">Retour au site CARPEO</a></p></div></footer><a class="ig-fab" href="https://www.instagram.com/carpeo_?rpxt=MWtnNThpeGRlbjl3YQ%3D%3D&amp;utm_source=qr" target="_blank" rel="noopener" aria-label="Suivre CARPEO sur Instagram"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a><script src="js/config.js"></script><script src="js/pricing.js"></script><script src="js/admin.js"></script></body></html>
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Back-office &amp; CRM — CARPEO</title>
+  <link rel="icon" href="assets/favicon-32.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Poppins:wght@300;500;600&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip" href="#contenu">Aller au contenu</a>
+  <header class="site-header" data-header>
+    <div class="wrap header-bar">
+      <a class="brand" href="index.html" aria-label="CARPEO, accueil">
+        <img class="brand-full" src="assets/logo-compact.webp" alt="CARPEO" width="181" height="132">
+        <img class="brand-mark" src="assets/logo-symbol.webp" alt="" width="56" height="48">
+      </a>
+      <nav class="nav" aria-label="Navigation administration">
+        <span id="admin-user-badge" class="badge" hidden style="margin:0 0.5rem 0 0"></span>
+        <a href="index.html">Voir le site</a>
+        <a href="reserver.html">Réservation</a>
+        <a href="suivi.html">Suivi client</a>
+        <button type="button" class="btn btn-night" id="logout" hidden style="min-height:38px;padding:0.4rem 0.9rem;font-size:0.92rem">Déconnexion</button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="contenu" class="section wrap" style="padding-top:2rem">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">
+      <div>
+        <p class="sur" style="margin-bottom:0.3rem">Back-office &amp; CRM Centralisé</p>
+        <div class="gradient-bar"></div>
+        <h1 style="font-size:clamp(1.8rem,3.5vw,2.6rem);margin:0">Pilotage CARPEO</h1>
+      </div>
+      <div id="admin-quick-bar" class="btn-row" style="margin-top:0" hidden>
+        <a class="btn btn-ghost" href="/api/admin/export.csv" style="min-height:40px;padding:0.45rem 0.9rem;font-size:0.92rem">Export CSV</a>
+        <a class="btn btn-ghost" href="/api/admin/calendar.ics" style="min-height:40px;padding:0.45rem 0.9rem;font-size:0.92rem">Planning .ics</a>
+        <button type="button" class="btn btn-night" id="quick-backup" style="min-height:40px;padding:0.45rem 0.9rem;font-size:0.92rem">Sauvegarde</button>
+      </div>
+    </div>
+
+    <div id="admin-status" role="status" class="admin-toast" hidden></div>
+
+    <section id="login-panel" class="panel" style="max-width:480px;margin:2rem auto">
+      <h2>Connexion Espace Équipe</h2>
+      <p class="note">Accès sécurisé multi-utilisateurs (Administrateur, Équipe, Lecture seule).</p>
+      <form id="login-form">
+        <label for="admin-email">Adresse e-mail</label>
+        <input id="admin-email" type="email" value="admin@carpeo.local" required autocomplete="username">
+        <label for="admin-password">Mot de passe</label>
+        <input id="admin-password" type="password" value="CarpeoAdmin2026!" required autocomplete="current-password">
+        <button class="btn btn-ocean" type="submit" style="width:100%">Se connecter au Back-office</button>
+      </form>
+      <p class="note" style="margin-top:0.8rem;margin-bottom:0">Compte local pré-configuré : <code>admin@carpeo.local</code> / <code>CarpeoAdmin2026!</code></p>
+    </section>
+
+    <section id="admin-app" hidden>
+      <div id="admin-nav-tabs" class="admin-tabs" role="tablist" aria-label="Modules du back-office"></div>
+      <div id="admin-view"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap foot-grid">
+      <img class="foot-logo" src="assets/logo-compact-white.webp" alt="CARPEO, nettoyage textile" width="206" height="150">
+      <div>
+        <p>prolongez la vie de vos textiles</p>
+        <p class="fine"><span data-area></span> · <span data-hours></span></p>
+        <nav class="legal-links" aria-label="Liens rapides">
+          <a href="index.html">Site public</a>
+          <a href="tarifs.html">Grille des tarifs</a>
+          <a href="reserver.html">Parcours réservation</a>
+          <a href="suivi.html">Suivi client</a>
+          <a href="https://maps.app.goo.gl/VkYEVypbSAMpe5S56?g_st=iw" target="_blank" rel="noopener">Google Maps</a>
+        </nav>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="js/config.js"></script>
+  <script src="js/pricing.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
