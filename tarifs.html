@@ -26,6 +26,7 @@
       <a href="services.html" data-nav="services">Services</a>
       <a href="realisations.html" data-nav="realisations">Réalisations</a>
       <a href="professionnels.html" data-nav="pros">Pros</a>
+      <a href="faq.html" data-nav="faq">FAQ</a>
       <a href="contact.html" data-nav="contact">Contact</a>
     </nav>
   </div>
@@ -39,20 +40,8 @@
   <p class="lead">Un prix ferme est un montant calculé par la grille. Une estimation « à partir de » n'engage pas CARPEO tant qu'un devis n'est pas accepté.</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Prestation</th><th>Prix ferme</th><th>Acompte 50 %</th><th>Parcours</th></tr></thead>
-      <tbody>
-        <tr><td>Canapé 2 places, droit</td><td>89 €</td><td>44,50 €</td><td>Réservation</td></tr>
-        <tr><td>Canapé 3 places, droit</td><td>99 €</td><td>49,50 €</td><td>Réservation</td></tr>
-        <tr><td>Canapé d'angle 2 places</td><td>119 €</td><td>59,50 €</td><td>Réservation</td></tr>
-        <tr><td>Canapé d'angle 3 places</td><td>139 €</td><td>69,50 €</td><td>Réservation</td></tr>
-        <tr><td>Matelas 2 places, une face</td><td>79 €</td><td>39,50 €</td><td>Réservation</td></tr>
-        <tr><td>Matelas 2 places, deux faces</td><td>89 €</td><td>44,50 €</td><td>Réservation</td></tr>
-        <tr><td>Fauteuil</td><td>49 €</td><td>24,50 €</td><td>Réservation</td></tr>
-        <tr><td>Chaise rembourrée</td><td>25 €</td><td>12,50 €</td><td>Réservation</td></tr>
-        <tr><td>Lot de 6 chaises</td><td>90 €</td><td>45 €</td><td>Réservation</td></tr>
-        <tr><td>Tapis</td><td>dès 39 €</td><td>après devis</td><td>Devis</td></tr>
-        <tr><td>Moquette, coussins, autre</td><td>sur devis</td><td>après devis</td><td>Devis</td></tr>
-      </tbody>
+      <thead><tr><th>Prestation</th><th>Prix</th><th>Acompte</th><th>Parcours</th></tr></thead>
+      <tbody id="price-table-body"></tbody>
     </table>
   </div>
   <h2>Ce qui n'est pas dans la grille</h2>
@@ -79,6 +68,7 @@
         <a href="cgv.html">CGV</a>
         <a href="suivi.html">Suivi de dossier</a>
         <a href="reserver.html">Réserver</a>
+        <a href="admin.html">Gérer les tarifs</a>
         <button type="button" class="mini" id="cookie-reopen" style="color:#fff">Cookies</button>
       </nav>
     </div>
@@ -94,8 +84,10 @@
   <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#fff" stroke-width="1.6"><path d="M7 3h3l1 4-2 1a12 12 0 0 0 6 6l1-2 4 1v3a2 2 0 0 1-2 2A16 16 0 0 1 5 5a2 2 0 0 1 2-2z"/></svg>
 </a>
 <script src="js/config.js"></script>
+<script src="js/pricing.js"></script>
 <script src="js/consent.js"></script>
 <script src="js/main.js"></script>
+<script src="js/tarifs.js"></script>
 
 </body>
 </html>

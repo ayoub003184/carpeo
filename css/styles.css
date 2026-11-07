@@ -25,6 +25,7 @@ body {
   font-size: 1.0625rem;
   line-height: 1.6;
 }
+.home-focus main > section:not([data-home-keep]) { display: none; }
 img { max-width: 100%; height: auto; }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--petrol); }

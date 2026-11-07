@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="css/styles.css">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"CARPEO","description":"Nettoyage professionnel de textiles d'ameublement à domicile.","url":"https://www.carpeo.fr","email":"contact@carpeo.fr","areaServed":"Île-de-France","priceRange":"€€","slogan":"Redonnez vie à vos textiles","telephone":"+33615144566"}</script>
 </head>
-<body data-nav="accueil">
+<body data-nav="accueil" class="home-focus">
 <a class="skip" href="#contenu">Aller au contenu</a>
 <header class="site-header" data-header>
   <div class="wrap header-bar">
@@ -26,13 +26,14 @@
       <a href="services.html" data-nav="services">Services</a>
       <a href="realisations.html" data-nav="realisations">Réalisations</a>
       <a href="professionnels.html" data-nav="pros">Pros</a>
+      <a href="faq.html" data-nav="faq">FAQ</a>
       <a href="contact.html" data-nav="contact">Contact</a>
     </nav>
   </div>
 </header>
 <main id="contenu">
 
-<section class="hero wrap">
+<section class="hero wrap" data-home-keep>
   <div class="hero-copy">
     <p class="sur hero-line">Nettoyage textile</p>
     <h1 class="hero-line d2">Redonnez vie à vos textiles</h1>
@@ -48,12 +49,12 @@
     <img src="assets/photos/hero.webp" width="1400" height="952" alt="Salon lumineux avec un canapé clair et un grand tapis, lumière du jour. Visuel d'ambiance à remplacer par une photo CARPEO." fetchpriority="high">
   </div>
 </section>
-<section class="section" style="padding-top:0">
+<section class="section" style="padding-top:0" data-home-keep>
   <div class="wrap trust">
     <article class="reveal"><strong data-count="4.9" data-decimals="1">0</strong><span>Note Google — exemple, à connecter à votre fiche</span></article>
     <article class="reveal"><strong>À domicile</strong><span>Intervention chez vous, maison ou local</span></article>
     <article class="reveal"><strong>Devis clair</strong><span>Prix ferme ou estimation, sans frais caché annoncé</span></article>
-    <article class="reveal"><strong data-count="50" data-suffix=" %">0</strong><span>Acompte indicatif sur les prix fermes</span></article>
+    <article class="reveal"><strong data-deposit>20 €</strong><span>Acompte pour confirmer le rendez-vous</span></article>
   </div>
 </section>
 <section class="section" style="padding-top:0">
@@ -127,22 +128,22 @@
     <div class="section-head">
       <p class="sur">Tarifs</p>
       <div class="gradient-bar"></div>
-      <h2>Prix fermes, acompte de 50 %</h2>
+      <h2>Prix fermes, acompte de <span data-deposit>20 €</span></h2>
       <p>Le solde se règle après l'intervention. Ces montants sont ceux du cahier des charges, à confirmer avant mise en ligne.</p>
     </div>
     <div class="table-wrap reveal">
       <table>
         <thead><tr><th>Prestation</th><th>Prix</th><th>Acompte</th></tr></thead>
         <tbody>
-          <tr><td>Canapé 2 places</td><td>89 €</td><td>44,50 €</td></tr>
-          <tr><td>Canapé 3 places</td><td>99 €</td><td>49,50 €</td></tr>
-          <tr><td>Canapé d'angle 2 places</td><td>119 €</td><td>59,50 €</td></tr>
-          <tr><td>Canapé d'angle 3 places</td><td>139 €</td><td>69,50 €</td></tr>
-          <tr><td>Matelas 2 places, 1 face</td><td>79 €</td><td>39,50 €</td></tr>
-          <tr><td>Matelas 2 places, 2 faces</td><td>89 €</td><td>44,50 €</td></tr>
-          <tr><td>Fauteuil</td><td>49 €</td><td>24,50 €</td></tr>
-          <tr><td>1 chaise</td><td>25 €</td><td>12,50 €</td></tr>
-          <tr><td>6 chaises</td><td>90 €</td><td>45 €</td></tr>
+          <tr><td>Canapé 2 places</td><td>89 €</td><td>20 €</td></tr>
+          <tr><td>Canapé 3 places</td><td>99 €</td><td>20 €</td></tr>
+          <tr><td>Canapé d'angle 2 places</td><td>119 €</td><td>20 €</td></tr>
+          <tr><td>Canapé d'angle 3 places</td><td>139 €</td><td>20 €</td></tr>
+          <tr><td>Matelas 2 places, 1 face</td><td>79 €</td><td>20 €</td></tr>
+          <tr><td>Matelas 2 places, 2 faces</td><td>89 €</td><td>20 €</td></tr>
+          <tr><td>Fauteuil</td><td>49 €</td><td>20 €</td></tr>
+          <tr><td>1 chaise</td><td>25 €</td><td>20 €</td></tr>
+          <tr><td>6 chaises</td><td>90 €</td><td>20 €</td></tr>
           <tr><td>Tapis</td><td>dès 39 €</td><td>sur devis</td></tr>
         </tbody>
       </table>
@@ -179,18 +180,20 @@
     </div>
   </div>
 </section>
-<section class="section" style="background:var(--mist)">
+<section class="section" style="background:var(--mist)" data-home-keep>
   <div class="wrap">
     <div class="section-head">
       <p class="sur">Questions</p>
       <div class="gradient-bar"></div>
       <h2>Avant de réserver</h2>
     </div>
-    <details class="reveal"><summary>Une tache ancienne part-elle toujours ?</summary><p>Non. Une tache ancienne, ou qui a déjà abîmé la fibre, peut laisser une marque. Le formulaire le rappelle avant l'envoi.</p></details>
-    <details class="reveal"><summary>L'acompte est-il remboursé si j'annule ?</summary><p>La règle commerciale envisagée est qu'un acompte n'est pas remboursé en cas d'annulation par le client. Elle doit être validée par un conseil avant publication, en distinguant acompte et arrhes, et les cas où la loi impose un remboursement.</p></details>
-    <details class="reveal"><summary>Que puis-je payer en ligne aujourd'hui ?</summary><p>Le parcours calcule le prix et l'acompte. L'écran Stripe est prêt, mais aucun paiement réel n'est encaissé tant que le compte Stripe n'est pas relié.</p></details>
-    <details class="reveal"><summary>Où intervenez-vous ?</summary><p>Paris et ses alentours, en Île-de-France. Le code postal est vérifié pendant la réservation.</p></details>
-    <details class="reveal"><summary>Comment fonctionne l'avance immédiate ?</summary><p>Si vous êtes éligible, vous ne réglez que le reste à charge. CARPEO vous accompagne 5 à 10 minutes à l'arrivée pour finaliser l'inscription Urssaf. Le montant réel dépend de vos droits.</p></details>
+    <details class="reveal"><summary>Quels types de textiles nettoyez-vous ?</summary><p>CARPEO propose le nettoyage professionnel par injection-extraction de canapés, matelas, tapis, moquettes, fauteuils, chaises et têtes de lit.</p></details>
+    <details class="reveal"><summary>Combien de temps faut-il pour le séchage ?</summary><p>Il faut généralement compter entre 6 et 24 heures, voire davantage pour certains textiles. Une bonne aération favorise un séchage plus rapide.</p></details>
+    <details class="reveal"><summary>Les taches disparaissent-elles complètement ?</summary><p>Nous faisons notre maximum, mais certaines taches anciennes ou incrustées peuvent être difficiles à retirer totalement.</p></details>
+    <details class="reveal"><summary>Comment fonctionne l’acompte de réservation de <span data-deposit>20 €</span> ?</summary><p>Avec l’avance immédiate, l’acompte est remboursé à la fin de la prestation. Sans l’avance immédiate, il est déduit du montant total.</p></details>
+    <details class="reveal"><summary>Qu’est-ce que l’avance immédiate du crédit d’impôt ?</summary><p>Ce service gratuit de l’Urssaf permet de bénéficier immédiatement de 50 % de crédit d’impôt, selon votre éligibilité.</p></details>
+    <details class="reveal"><summary>Puis-je annuler et récupérer mon acompte ?</summary><p>Oui, si l’annulation intervient au moins 48 heures avant l’intervention. À moins de 48 heures, l’acompte est conservé conformément aux CGV.</p></details>
+    <p><a class="btn btn-ghost" href="faq.html">Voir toute la FAQ</a></p>
   </div>
 </section>
 <section class="section" style="padding-top:0">
@@ -212,7 +215,7 @@
       <figure class="reveal"><img src="assets/photos/chaises.webp" width="700" height="460" alt="Chaises rembourrées autour d'une table." loading="lazy"><figcaption class="note">Chaises — à remplacer</figcaption></figure>
       <figure class="reveal"><img src="assets/photos/coussins.webp" width="700" height="460" alt="Tête de lit et coussins dans une chambre." loading="lazy"><figcaption class="note">Tête de lit et coussins</figcaption></figure>
       <figure class="reveal"><img src="assets/photos/canape-gris.webp" width="700" height="460" alt="Canapé gris capitonné dans un salon lumineux." loading="lazy"><figcaption class="note">Canapé 3 places</figcaption></figure>
-      <figure class="reveal"><img src="assets/photos/salon-cuir.webp" width="700" height="460" alt="Salon avec canapé en cuir, fauteuils et tapis." loading="lazy"><figcaption class="note">Salon et tapis</figcaption></figure>
+      <figure class="reveal"><img src="assets/photos/canape-apres.webp" width="700" height="460" alt="Canapé en tissu vert dans un salon clair." loading="lazy"><figcaption class="note">Canapé en tissu</figcaption></figure>
       <figure class="reveal"><img src="assets/photos/fauteuil-jaune.webp" width="700" height="460" alt="Fauteuil tissu jaune dans un salon." loading="lazy"><figcaption class="note">Fauteuil</figcaption></figure>
       <figure class="reveal"><img src="assets/photos/chambre.webp" width="700" height="460" alt="Chambre avec literie et coussins." loading="lazy"><figcaption class="note">Chambre</figcaption></figure>
       <figure class="reveal"><img src="assets/photos/fauteuil-capiton.webp" width="700" height="460" alt="Fauteuil capitonné crème." loading="lazy"><figcaption class="note">Capitonné</figcaption></figure>
@@ -236,7 +239,7 @@
     </div>
   </div>
 </section>
-<section class="section" id="contact-accueil">
+<section class="section" id="contact-accueil" data-home-keep>
   <div class="wrap contact-grid">
     <div class="listen">
       <h2>Un besoin, une question ?</h2>
@@ -290,6 +293,7 @@
         <a href="cgv.html">CGV</a>
         <a href="suivi.html">Suivi de dossier</a>
         <a href="reserver.html">Réserver</a>
+        <a href="admin.html">Gérer les tarifs</a>
         <button type="button" class="mini" id="cookie-reopen" style="color:#fff">Cookies</button>
       </nav>
     </div>
@@ -305,6 +309,7 @@
   <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#fff" stroke-width="1.6"><path d="M7 3h3l1 4-2 1a12 12 0 0 0 6 6l1-2 4 1v3a2 2 0 0 1-2 2A16 16 0 0 1 5 5a2 2 0 0 1 2-2z"/></svg>
 </a>
 <script src="js/config.js"></script>
+<script src="js/pricing.js"></script>
 <script src="js/consent.js"></script>
 <script src="js/main.js"></script>
 

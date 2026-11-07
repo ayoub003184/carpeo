@@ -30,6 +30,7 @@ HEAD = """<!DOCTYPE html>
       <a href="services.html" data-nav="services">Services</a>
       <a href="tarifs.html" data-nav="tarifs">Tarifs</a>
       <a href="a-propos.html" data-nav="apropos">À propos</a>
+      <a href="faq.html" data-nav="faq">FAQ</a>
       <a href="contact.html" data-nav="contact">Contact</a>
     </nav>
   </div>
@@ -52,6 +53,7 @@ FOOT = """
         <a href="cgv.html">CGV</a>
         <a href="suivi.html">Suivi de dossier</a>
         <a href="reserver.html">Réserver</a>
+        <a href="admin.html">Gérer les tarifs</a>
         <button type="button" class="mini" id="cookie-reopen" style="color:#fff">Cookies</button>
       </nav>
     </div>
@@ -67,6 +69,7 @@ FOOT = """
   <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#fff" stroke-width="1.6"><path d="M7 3h3l1 4-2 1a12 12 0 0 0 6 6l1-2 4 1v3a2 2 0 0 1-2 2A16 16 0 0 1 5 5a2 2 0 0 1 2-2z"/></svg>
 </a>
 <script src="js/config.js"></script>
+<script src="js/pricing.js"></script>
 <script src="js/consent.js"></script>
 <script src="js/main.js"></script>
 {scripts}
@@ -75,7 +78,10 @@ FOOT = """
 """
 
 def page(name, title, desc, nav, body, extra="", scripts=""):
-    html = HEAD.format(title=title, desc=desc, nav=nav, extra=extra) + body + FOOT.format(scripts=scripts)
+    head = HEAD.format(title=title, desc=desc, nav=nav, extra=extra)
+    if name == "index.html":
+        head = head.replace('<body data-nav="accueil">', '<body data-nav="accueil" class="home-focus">')
+    html = head + body + FOOT.format(scripts=scripts)
     (ROOT / name).write_text(html, encoding="utf-8")
     print(name)
 
@@ -87,7 +93,7 @@ CHAIR = '<span class="icon"><svg viewBox="0 0 24 24"><path d="M7 11V5h10v6"/><pa
 SEAT = '<span class="icon"><svg viewBox="0 0 24 24"><path d="M8 10V6h8v4"/><path d="M6 10h12v4H6z"/><path d="M8 14l-1 6M16 14l1 6"/></svg></span>'
 
 INDEX = f"""
-<section class="hero wrap">
+<section class="hero wrap" data-home-keep>
   <div class="hero-copy">
     <p class="sur hero-line">Nettoyage textile</p>
     <h1 class="hero-line d2">Vos textiles retrouvent leur éclat</h1>
@@ -103,12 +109,12 @@ INDEX = f"""
     <img src="assets/photos/hero.webp" width="1400" height="952" alt="Salon lumineux avec un canapé clair et un grand tapis, lumière du jour. Visuel d'ambiance à remplacer par une photo CARPEO." fetchpriority="high">
   </div>
 </section>
-<section class="section" style="padding-top:0">
+<section class="section" style="padding-top:0" data-home-keep>
   <div class="wrap trust">
     <article class="reveal"><strong data-count="4.9" data-decimals="1">0</strong><span>Note Google — exemple, à connecter à votre fiche</span></article>
     <article class="reveal"><strong>À domicile</strong><span>Intervention chez vous, maison ou local</span></article>
     <article class="reveal"><strong>Devis clair</strong><span>Prix ferme ou estimation, sans frais caché annoncé</span></article>
-    <article class="reveal"><strong data-count="50" data-suffix=" %">0</strong><span>Acompte indicatif sur les prix fermes</span></article>
+    <article class="reveal"><strong data-deposit>20 €</strong><span>Acompte pour confirmer le rendez-vous</span></article>
   </div>
 </section>
 <section class="section" style="padding-top:0">
@@ -180,20 +186,20 @@ INDEX = f"""
     <div class="section-head">
       <p class="sur">Tarifs</p>
       <div class="gradient-bar"></div>
-      <h2>Prix fermes, acompte de 50 %</h2>
+      <h2>Prix fermes, acompte de <span data-deposit>20 €</span></h2>
       <p>Le solde se règle après l'intervention. Ces montants sont ceux du cahier des charges, à confirmer avant mise en ligne.</p>
     </div>
     <div class="table-wrap reveal">
       <table>
         <thead><tr><th>Prestation</th><th>Prix</th><th>Acompte</th></tr></thead>
         <tbody>
-          <tr><td>Canapé 2 places</td><td>89 €</td><td>44,50 €</td></tr>
-          <tr><td>Canapé 3 places</td><td>99 €</td><td>49,50 €</td></tr>
-          <tr><td>Canapé d'angle 2 places</td><td>119 €</td><td>59,50 €</td></tr>
-          <tr><td>Canapé d'angle 3 places</td><td>139 €</td><td>69,50 €</td></tr>
-          <tr><td>Matelas 2 places, 1 face</td><td>79 €</td><td>39,50 €</td></tr>
-          <tr><td>Matelas 2 places, 2 faces</td><td>89 €</td><td>44,50 €</td></tr>
-          <tr><td>Fauteuil</td><td>49 €</td><td>24,50 €</td></tr>
+          <tr><td>Canapé 2 places</td><td>89 €</td><td>20 €</td></tr>
+          <tr><td>Canapé 3 places</td><td>99 €</td><td>20 €</td></tr>
+          <tr><td>Canapé d'angle 2 places</td><td>119 €</td><td>20 €</td></tr>
+          <tr><td>Canapé d'angle 3 places</td><td>139 €</td><td>20 €</td></tr>
+          <tr><td>Matelas 2 places, 1 face</td><td>79 €</td><td>20 €</td></tr>
+          <tr><td>Matelas 2 places, 2 faces</td><td>89 €</td><td>20 €</td></tr>
+          <tr><td>Fauteuil</td><td>49 €</td><td>20 €</td></tr>
           <tr><td>1 chaise</td><td>25 €</td><td>12,50 €</td></tr>
           <tr><td>6 chaises</td><td>90 €</td><td>45 €</td></tr>
           <tr><td>Tapis</td><td>dès 39 €</td><td>sur devis</td></tr>
@@ -232,20 +238,23 @@ INDEX = f"""
     </div>
   </div>
 </section>
-<section class="section" style="background:var(--mist)">
+<section class="section" style="background:var(--mist)" data-home-keep>
   <div class="wrap">
     <div class="section-head">
       <p class="sur">Questions</p>
       <div class="gradient-bar"></div>
       <h2>Avant de réserver</h2>
     </div>
-    <details class="reveal"><summary>Une tache ancienne part-elle toujours ?</summary><p>Non. Une tache ancienne, ou qui a déjà abîmé la fibre, peut laisser une marque. Le formulaire le rappelle avant l'envoi.</p></details>
-    <details class="reveal"><summary>L'acompte est-il remboursé si j'annule ?</summary><p>La règle commerciale envisagée est qu'un acompte n'est pas remboursé en cas d'annulation par le client. Elle doit être validée par un conseil avant publication, en distinguant acompte et arrhes, et les cas où la loi impose un remboursement.</p></details>
-    <details class="reveal"><summary>Que puis-je payer en ligne aujourd'hui ?</summary><p>Le parcours calcule le prix et l'acompte. L'écran Stripe est prêt, mais aucun paiement réel n'est encaissé tant que le compte Stripe n'est pas relié.</p></details>
-    <details class="reveal"><summary>Où intervenez-vous ?</summary><p>La zone exacte n'est pas encore communiquée. Elle sera affichée ici, sans adresse inventée.</p></details>
+    <details class="reveal"><summary>Quels types de textiles nettoyez-vous ?</summary><p>CARPEO propose le nettoyage professionnel par injection-extraction de canapés, matelas, tapis, moquettes, fauteuils, chaises et têtes de lit.</p></details>
+    <details class="reveal"><summary>Combien de temps faut-il pour le séchage ?</summary><p>Il faut généralement compter entre 6 et 24 heures, voire davantage pour certains textiles. Une bonne aération favorise un séchage plus rapide.</p></details>
+    <details class="reveal"><summary>Les taches disparaissent-elles complètement ?</summary><p>Nous faisons notre maximum, mais certaines taches anciennes ou incrustées peuvent être difficiles à retirer totalement.</p></details>
+    <details class="reveal"><summary>Comment fonctionne l'acompte de réservation de 20 € ?</summary><p>Avec l'avance immédiate, l'acompte est remboursé à la fin de la prestation. Sans l'avance immédiate, il est déduit du montant total.</p></details>
+    <details class="reveal"><summary>Qu'est-ce que l'avance immédiate du crédit d'impôt ?</summary><p>Ce service gratuit de l'Urssaf permet de bénéficier immédiatement de 50 % de crédit d'impôt, selon votre éligibilité.</p></details>
+    <details class="reveal"><summary>Puis-je annuler et récupérer mon acompte ?</summary><p>Oui, si l'annulation intervient au moins 48 heures avant l'intervention. À moins de 48 heures, l'acompte est conservé conformément aux CGV.</p></details>
+    <p><a class="btn btn-ghost" href="faq.html">Voir toute la FAQ</a></p>
   </div>
 </section>
-<section class="section" id="contact-accueil">
+<section class="section" id="contact-accueil" data-home-keep>
   <div class="wrap contact-grid">
     <div>
       <p class="sur">Contact</p>
@@ -317,7 +326,7 @@ def service(fname, title, h1, desc, img, alt, body, cta, cta_href):
 service("canapes.html", "Nettoyage de canapés — CARPEO", "Canapés et sofas",
         "Nettoyage de canapés 2 places, 3 places et d'angle. Prix ferme et réservation en ligne CARPEO.",
         "assets/photos/canape.webp", "Canapé velours vert dans une pièce claire. Photo d'ambiance à remplacer.",
-        "<p>Le prix dépend du nombre de places et de la forme : droit ou angle. Une méridienne est comptée comme un angle, en attendant votre confirmation.</p><ul><li>2 places : 89 €</li><li>3 places : 99 €</li><li>Angle 2 places : 119 €</li><li>Angle 3 places : 139 €</li></ul><p>Acompte de 50 % au moment de la réservation. Le revêtement se précise dans le formulaire.</p>",
+        "<p>Le prix dépend du nombre de places et de la configuration. Un acompte de 20 € confirme la réservation. Précisez le revêtement, par exemple coton, velours ou soie.</p>",
         "Réserver un canapé", "reserver.html")
 
 service("matelas.html", "Nettoyage de matelas — CARPEO", "Matelas",
@@ -341,7 +350,7 @@ service("moquettes.html", "Nettoyage de moquettes — CARPEO", "Moquettes",
 service("fauteuils.html", "Nettoyage de fauteuils — CARPEO", "Fauteuils",
         "Nettoyage de fauteuils à 49 euros l'unité, réservation en ligne CARPEO.",
         "assets/photos/fauteuil.webp", "Fauteuil jaune dans un salon clair. Photo d'ambiance à remplacer.",
-        "<p>49 € le fauteuil, acompte 24,50 €. Précisez le revêtement et les particularités : accoudoirs bois, coutures fragiles, assise très tachée.</p>",
+        "<p>49 € le fauteuil, acompte 20 €. Précisez le revêtement, par exemple coton, velours ou soie, ainsi que les particularités.</p>",
         "Réserver un fauteuil", "reserver.html")
 
 service("chaises.html", "Nettoyage de chaises rembourrées — CARPEO", "Chaises rembourrées",
@@ -364,15 +373,15 @@ TARIFS = """
   <p class="lead">Un prix ferme est un montant calculé par la grille. Une estimation « à partir de » n'engage pas CARPEO tant qu'un devis n'est pas accepté.</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Prestation</th><th>Prix ferme</th><th>Acompte 50 %</th><th>Parcours</th></tr></thead>
+      <thead><tr><th>Prestation</th><th>Prix ferme</th><th>Acompte</th><th>Parcours</th></tr></thead>
       <tbody>
-        <tr><td>Canapé 2 places, droit</td><td>89 €</td><td>44,50 €</td><td>Réservation</td></tr>
-        <tr><td>Canapé 3 places, droit</td><td>99 €</td><td>49,50 €</td><td>Réservation</td></tr>
-        <tr><td>Canapé d'angle 2 places</td><td>119 €</td><td>59,50 €</td><td>Réservation</td></tr>
-        <tr><td>Canapé d'angle 3 places</td><td>139 €</td><td>69,50 €</td><td>Réservation</td></tr>
-        <tr><td>Matelas 2 places, une face</td><td>79 €</td><td>39,50 €</td><td>Réservation</td></tr>
-        <tr><td>Matelas 2 places, deux faces</td><td>89 €</td><td>44,50 €</td><td>Réservation</td></tr>
-        <tr><td>Fauteuil</td><td>49 €</td><td>24,50 €</td><td>Réservation</td></tr>
+        <tr><td>Canapé 2 places, droit</td><td>89 €</td><td>20 €</td><td>Réservation</td></tr>
+        <tr><td>Canapé 3 places, droit</td><td>99 €</td><td>20 €</td><td>Réservation</td></tr>
+        <tr><td>Canapé d'angle 2 places</td><td>119 €</td><td>20 €</td><td>Réservation</td></tr>
+        <tr><td>Canapé d'angle 3 places</td><td>139 €</td><td>20 €</td><td>Réservation</td></tr>
+        <tr><td>Matelas 2 places, une face</td><td>79 €</td><td>20 €</td><td>Réservation</td></tr>
+        <tr><td>Matelas 2 places, deux faces</td><td>89 €</td><td>20 €</td><td>Réservation</td></tr>
+        <tr><td>Fauteuil</td><td>49 €</td><td>20 €</td><td>Réservation</td></tr>
         <tr><td>Chaise rembourrée</td><td>25 €</td><td>12,50 €</td><td>Réservation</td></tr>
         <tr><td>Lot de 6 chaises</td><td>90 €</td><td>45 €</td><td>Réservation</td></tr>
         <tr><td>Tapis</td><td>dès 39 €</td><td>après devis</td><td>Devis</td></tr>
@@ -465,7 +474,7 @@ RESERVER = """
 </section>
 """
 page("reserver.html", "Réserver ou demander un devis — CARPEO",
-     "Parcours CARPEO : textiles, taches, photos, adresse, créneau, acompte de 50 % et écran Stripe.",
+     "Parcours CARPEO : textiles, taches, photos, adresse, créneau, acompte de réservation et paiement.",
      "accueil", RESERVER, scripts='<script src="js/booking.js"></script>')
 
 SUIVI = """
@@ -537,9 +546,9 @@ CGV = """
   <h2>Prestations</h2>
   <p>Nettoyage de textiles d'ameublement à l'adresse indiquée par le client. Un prix ferme vaut pour les articles de la grille. Un devis précise sa durée de validité, les prestations incluses et les suppléments.</p>
   <h2>Acompte</h2>
-  <p>Sur un prix ferme, l'acompte affiché est de 50 %. Il est déduit du montant final : reste à payer = prix confirmé − acompte versé. Le prix accepté ne change pas si la grille est modifiée ensuite.</p>
+  <p>Un acompte de 20 € confirme le rendez-vous. Avec l'avance immédiate, il est remboursé à la fin de la prestation. Sans l'avance immédiate, il est déduit du montant total.</p>
   <h2>Annulation</h2>
-  <p>La règle souhaitée est que l'acompte ne soit pas remboursé lorsque le client annule. Cette phrase ne sera opposable qu'après validation juridique. Il faudra distinguer l'acompte des arrhes, et les situations où la loi impose un remboursement ou un autre traitement, notamment pour certains contrats à distance.</p>
+  <p>Toute annulation effectuée au moins 48 heures avant l'intervention donne droit au remboursement intégral de l'acompte. À moins de 48 heures, l'acompte est conservé.</p>
   <h2>Rétractation et médiation</h2>
   <p>Le droit de rétractation et l'information sur la médiation de la consommation dépendent de la situation exacte de CARPEO (prestation à une date choisie, exécution chez le client). Les coordonnées du médiateur seront ajoutées ici dès qu'elles seront connues. Elles ne sont pas inventées.</p>
   <h2>Résultat</h2>
@@ -547,12 +556,13 @@ CGV = """
 </section>
 """
 page("cgv.html", "Conditions générales — CARPEO",
-     "Conditions provisoires CARPEO : prix, acompte de 50 %, annulation et limites sur les taches anciennes.",
+     "Conditions CARPEO : prix, acompte de réservation, annulation et limites sur les taches anciennes.",
      "accueil", CGV)
 
 pages = [
 "index.html","services.html","canapes.html","matelas.html","tapis.html","moquettes.html",
-"fauteuils.html","chaises.html","coussins.html","tarifs.html","a-propos.html","contact.html",
+"fauteuils.html","chaises.html","coussins.html","tetes-de-lit.html","realisations.html","professionnels.html",
+"tarifs.html","a-propos.html","faq.html","contact.html",
 "reserver.html","suivi.html","mentions-legales.html","confidentialite.html","cgv.html"
 ]
 urls = "\n".join(f"https://www.carpeo.fr/{p if p != 'index.html' else ''}" for p in pages)

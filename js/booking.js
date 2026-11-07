@@ -1,5 +1,6 @@
 (function () {
   var euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+  var pricing = window.CARPEO_PRICING;
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -9,33 +10,41 @@
   var AGES = ["Moins de 24 heures", "Quelques jours", "Quelques semaines", "Plusieurs mois", "Inconnue"];
   var HEARD = ["Instagram", "Facebook", "TikTok", "Google", "Publicité en ligne", "Recommandation", "Autre"];
 
+  function sofaKey(item) {
+    if (item.config === "panoramique") return "sofaPanoramic";
+    if (item.config === "convertible") return "sofaConvertible";
+    if (item.config === "meridienne") return item.places === "3" ? "sofa3Meridienne" : "sofa2Meridienne";
+    if (item.config === "angle") return item.places === "4" ? "sofa4Angle" : item.places === "3" ? "sofa3Angle" : "sofa2Angle";
+    return item.places === "4" ? "sofa4Straight" : item.places === "3" ? "sofa3Straight" : "sofa2Straight";
+  }
+
   function priceOf(item) {
     if (item.cat === "canape") {
-      var places = item.places;
-      if (item.config === "angle" || item.config === "meridienne") {
-        if (places === "2") return 119;
-        if (places === "3") return 139;
-        return null;
-      }
-      if (item.config === "panoramique" || item.config === "convertible") return null;
-      if (places === "2") return 89;
-      if (places === "3") return 99;
-      return null;
+      return pricing.price(sofaKey(item));
     }
     if (item.cat === "matelas") {
-      var unit = item.faces === "2" ? 89 : 79;
-      return unit * (parseInt(item.qty, 10) || 1);
+      var mattress = pricing.price(item.faces === "2" ? "mattress2" : "mattress1");
+      return mattress == null ? null : mattress * (parseInt(item.qty, 10) || 1);
     }
-    if (item.cat === "fauteuil") return 49 * (parseInt(item.qty, 10) || 1);
+    if (item.cat === "fauteuil") {
+      var armchair = pricing.price("armchair");
+      return armchair == null ? null : armchair * (parseInt(item.qty, 10) || 1);
+    }
     if (item.cat === "chaise") {
       var q = parseInt(item.qty, 10) || 1;
-      return Math.floor(q / 6) * 90 + (q % 6) * 25;
+      var single = pricing.price("chair");
+      var bundle = pricing.price("chairs6");
+      if (single == null || bundle == null) return null;
+      return Math.floor(q / 6) * bundle + (q % 6) * single;
     }
-    return null;
+    var key = { tapis: "rug", moquette: "carpet", coussin: "cushion", tete: "headboard", autre: "other" }[item.cat];
+    if (!key) return null;
+    var unit = pricing.price(key);
+    return unit == null ? null : unit * (parseInt(item.qty, 10) || 1);
   }
 
   function needsQuote(item) {
-    return item.cat === "tapis" || item.cat === "moquette" || item.cat === "coussin" || item.cat === "tete" || item.cat === "autre" || priceOf(item) == null;
+    return priceOf(item) == null;
   }
 
   function area(item) {
@@ -50,7 +59,7 @@
   }
 
   function blank() {
-    return { cat: "canape", places: "3", config: "droit", matiere: "", qty: "1", faces: "1", length: "", width: "", surface: "", size: "", desc: "", stain: "", stainCount: "", age: "", odor: "non", use: "", caution: "" };
+    return { cat: "canape", places: "3", config: "droit", matiere: "", qty: "1", faces: "1", length: "", width: "", surface: "", size: "", desc: "", stain: "", age: "", odor: "non", use: "", caution: "" };
   }
 
   var PROMOS = { BIENVENUE10: { type: "pct", value: 10 }, CARPEO20: { type: "eur", value: 20 }, FIDELITE15: { type: "pct", value: 15 }, NOEL2026: { type: "pct", value: 10 } };
@@ -68,30 +77,34 @@
 
   function itemCard(item, index) {
     var cat = '<select id="cat-' + index + '" data-k="cat">' +
-      [["canape", "Canapé"], ["matelas", "Matelas"], ["tapis", "Tapis"], ["moquette", "Moquette"], ["chaise", "Chaises"], ["fauteuil", "Fauteuils"], ["tete", "Tête de lit"], ["autre", "Autre demande"]]
+      [["canape", "Canapé"], ["matelas", "Matelas"], ["tapis", "Tapis"], ["moquette", "Moquette"], ["chaise", "Chaises"], ["fauteuil", "Fauteuils"], ["coussin", "Coussins"], ["tete", "Tête de lit"], ["autre", "Autre demande"]]
         .map(function (o) { return '<option value="' + o[0] + '"' + (item.cat === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
       "</select>";
     var extra = "";
     if (item.cat === "canape") {
-      extra += field("Nombre de places", '<select id="places-' + index + '" data-k="places"><option value="2"' + (item.places === "2" ? " selected" : "") + '>2 places — 89 €</option><option value="3"' + (item.places === "3" ? " selected" : "") + '>3 places — 99 €</option><option value="4"' + (item.places === "4" ? " selected" : "") + '>4 places — sur devis</option></select>', "places-" + index);
-      extra += field("Configuration", '<select id="config-' + index + '" data-k="config"><option value="droit">Droit</option><option value="angle"' + (item.config === "angle" ? " selected" : "") + '>Angle</option><option value="meridienne"' + (item.config === "meridienne" ? " selected" : "") + '>Méridienne</option><option value="panoramique"' + (item.config === "panoramique" ? " selected" : "") + '>Panoramique — sur devis</option><option value="convertible"' + (item.config === "convertible" ? " selected" : "") + '>Convertible — sur devis</option></select>', "config-" + index);
-      extra += field("Revêtement, si connu", '<input id="mat-' + index + '" data-k="matiere" value="' + esc(item.matiere) + '" placeholder="Tissu, velours, cuir…">', "mat-" + index);
+      extra += field("Nombre de places", '<select id="places-' + index + '" data-k="places"><option value="2"' + (item.places === "2" ? " selected" : "") + '>2 places</option><option value="3"' + (item.places === "3" ? " selected" : "") + '>3 places</option><option value="4"' + (item.places === "4" ? " selected" : "") + '>4 places</option></select>', "places-" + index);
+      function sofaLabel(config, label) {
+        return pricing.option(label, sofaKey({ places: item.places, config: config }));
+      }
+      extra += field("Configuration", '<select id="config-' + index + '" data-k="config"><option value="droit">' + sofaLabel("droit", "Droit") + '</option><option value="angle"' + (item.config === "angle" ? " selected" : "") + '>' + sofaLabel("angle", "Angle") + '</option><option value="meridienne"' + (item.config === "meridienne" ? " selected" : "") + '>' + sofaLabel("meridienne", "Méridienne") + '</option><option value="panoramique"' + (item.config === "panoramique" ? " selected" : "") + '>' + sofaLabel("panoramique", "Panoramique") + '</option><option value="convertible"' + (item.config === "convertible" ? " selected" : "") + '>' + sofaLabel("convertible", "Convertible") + '</option></select>', "config-" + index);
+      extra += field("Revêtement, si connu", '<input id="mat-' + index + '" data-k="matiere" value="' + esc(item.matiere) + '" placeholder="Coton, velours, soie…">', "mat-" + index);
     }
     if (item.cat === "matelas") {
       extra += field("Quantité", '<input id="qty-' + index + '" data-k="qty" type="number" min="1" value="' + item.qty + '">', "qty-" + index);
-      extra += field("Faces à nettoyer", '<select id="faces-' + index + '" data-k="faces"><option value="1">Une face — 79 €</option><option value="2"' + (item.faces === "2" ? " selected" : "") + '>Deux faces — 89 €</option></select>', "faces-" + index);
+      extra += field("Faces à nettoyer", '<select id="faces-' + index + '" data-k="faces"><option value="1">' + pricing.option("Une face", "mattress1") + '</option><option value="2"' + (item.faces === "2" ? " selected" : "") + '>' + pricing.option("Deux faces", "mattress2") + '</option></select>', "faces-" + index);
       extra += field("Dimensions", '<input id="size-' + index + '" data-k="size" value="' + esc(item.size) + '" placeholder="140 × 190, 160 × 200…">', "size-" + index);
     }
     if (item.cat === "fauteuil" || item.cat === "chaise" || item.cat === "coussin" || item.cat === "tete") {
       extra += field("Quantité", '<input id="qty-' + index + '" data-k="qty" type="number" min="1" value="' + item.qty + '">', "qty-" + index);
-      extra += field(item.cat === "coussin" ? "Taille approximative" : "Revêtement ou particularité", '<input id="mat-' + index + '" data-k="matiere" value="' + esc(item.matiere) + '">', "mat-" + index);
+      extra += field(item.cat === "coussin" ? "Taille" : "Revêtement ou particularité", '<input id="mat-' + index + '" data-k="matiere" value="' + esc(item.matiere) + '" placeholder="Coton, velours, soie…">', "mat-" + index);
     }
     if (item.cat === "tapis" || item.cat === "moquette") {
       var m2 = area(item);
       extra += field("Longueur (m)", '<input id="len-' + index + '" data-k="length" inputmode="decimal" value="' + esc(item.length) + '">', "len-" + index);
       extra += field("Largeur (m)", '<input id="wid-' + index + '" data-k="width" inputmode="decimal" value="' + esc(item.width) + '">', "wid-" + index);
       extra += field("Ou surface directe (m²)", '<input id="surf-' + index + '" data-k="surface" inputmode="decimal" value="' + esc(item.surface) + '">', "surf-" + index);
-      extra += '<p class="note">Surface retenue : ' + (m2 == null ? "à compléter" : m2.toLocaleString("fr-FR") + " m²") + ". Le prix au m² n'est pas encore fixé : ce textile part en devis. Indication tapis : à partir de 39 €.</p>";
+      var surfaceKey = item.cat === "tapis" ? "rug" : "carpet";
+      extra += '<p class="note">Surface retenue : ' + (m2 == null ? "à compléter" : m2.toLocaleString("fr-FR") + " m²") + ". Tarif actuel : " + pricing.display(surfaceKey) + ".</p>";
     }
     if (item.cat === "autre") {
       extra += field("Description", '<input id="desc-' + index + '" data-k="desc" value="' + esc(item.desc) + '">', "desc-" + index);
@@ -104,7 +117,6 @@
       return '<option' + (item.age === s ? " selected" : "") + ">" + s + "</option>";
     }).join("");
     extra += field("Nature des taches", '<select id="stain-' + index + '" data-k="stain"><option value="">Non précisé</option>' + stains + "</select>", "stain-" + index);
-    extra += field("Nombre approximatif", '<input id="sc-' + index + '" data-k="stainCount" value="' + esc(item.stainCount) + '">', "sc-" + index);
     extra += field("Ancienneté", '<select id="age-' + index + '" data-k="age"><option value="">Non précisé</option>' + ages + "</select>", "age-" + index);
     extra += field("Odeurs persistantes", '<select id="odor-' + index + '" data-k="odor"><option value="non">Non</option><option value="oui"' + (item.odor === "oui" ? " selected" : "") + ">Oui</option></select>", "odor-" + index);
     extra += '<p class="note">Certaines taches anciennes, ou qui ont déjà altéré les fibres, peuvent ne pas disparaître totalement.</p>';
@@ -222,8 +234,9 @@
     var net = Math.round((base - off) * 100) / 100;
     var avance = state.avance === "oui";
     var due = avance ? Math.round(net * 50) / 100 : net;
-    var deposit = Math.round(due * 50) / 100;
-    return { base: base, off: off, net: net, avance: avance, due: due, deposit: deposit, rest: Math.round((due - deposit) * 100) / 100, code: promo ? code : "" };
+    var deposit = Math.min(pricing.load().deposit, due);
+    var rest = avance ? due : Math.round((due - deposit) * 100) / 100;
+    return { base: base, off: off, net: net, avance: avance, due: due, deposit: deposit, rest: rest, code: promo ? code : "" };
   }
 
   function summaryHtml() {
@@ -241,7 +254,8 @@
         '<dl class="summary"><dt>Prix</dt><dd>' + euro.format(money.base) + '</dd>' +
         (money.off ? '<dt>Réduction ' + money.code + '</dt><dd>− ' + euro.format(money.off) + '</dd>' : '') +
         (money.avance ? '<dt>Avantage indicatif 50 %</dt><dd>' + euro.format(money.net - money.due) + '</dd><dt>Reste à charge</dt><dd>' + euro.format(money.due) + '</dd>' : '') +
-        '<dt>Acompte 50 %</dt><dd>' + euro.format(money.deposit) + '</dd><dt>Solde</dt><dd>' + euro.format(money.rest) + '</dd></dl>' +
+        '<dt>Acompte de réservation</dt><dd>' + euro.format(money.deposit) + '</dd><dt>' + (money.avance ? "Montant à régler après remboursement de l’acompte" : "Solde") + '</dt><dd>' + euro.format(money.rest) + '</dd></dl>' +
+        (money.avance ? '<p class="note">Avec l’avance immédiate, l’acompte est remboursé à la fin de la prestation.</p>' : '<p class="note">Sans l’avance immédiate, l’acompte est déduit du montant total.</p>') +
         '<div class="stripe-box"><strong>Paiement</strong><p>Écran préparé pour Stripe ou un autre prestataire. Aucune carte n\'est demandée.</p><p class="note">Créneau : ' + (state.slot || "—") + '.</p></div>' +
         '<label><input type="checkbox" id="cgv" style="width:auto"> J\'accepte les <a href="cgv.html">conditions</a> avant de confirmer.</label>' +
         '<p class="field-error" id="pay-error" hidden>Acceptez les conditions pour continuer la simulation.</p>';
@@ -306,7 +320,7 @@
     document.querySelectorAll("[data-k]").forEach(function (input) {
       input.addEventListener("change", function () {
         readItems();
-        if (input.getAttribute("data-k") === "cat" || input.getAttribute("data-k") === "length" || input.getAttribute("data-k") === "width" || input.getAttribute("data-k") === "surface") render();
+        if (["cat", "places", "config", "faces", "length", "width", "surface"].indexOf(input.getAttribute("data-k")) !== -1) render();
       });
     });
     document.querySelectorAll("[data-photos]").forEach(function (input) {
@@ -437,7 +451,7 @@
         b.qty = String(p.qty || 1);
         return b;
       });
-    } else if (params.get("parcours") === "devis") state.items = [{ cat: "tapis", places: "3", config: "droit", matiere: "", qty: "1", faces: "1", length: "", width: "", surface: "", size: "", desc: "", stain: "", stainCount: "", age: "", odor: "non", use: "", caution: "" }];
+    } else if (params.get("parcours") === "devis") state.items = [{ cat: "tapis", places: "3", config: "droit", matiere: "", qty: "1", faces: "1", length: "", width: "", surface: "", size: "", desc: "", stain: "", age: "", odor: "non", use: "", caution: "" }];
     render();
   });
 })();
