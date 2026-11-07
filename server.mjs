@@ -145,9 +145,9 @@ const DEFAULT_SETTINGS = {
   deposit: "20",
   area: "Intervention à domicile et en entreprise",
   hours: "7 jours sur 7, de 9 h à 19 h",
-  maps_url: "https://maps.app.goo.gl/VkYEVypbSAMpe5S56?g_st=iw",
-  base_lat: "48.8566",
-  base_lng: "2.3522",
+  maps_url: "https://www.google.com/maps/place/Carpeo/@48.8350077,2.4096267,11z/data=!3m1!4b1!4m6!3m5!1s0x42afe645686fa375:0xe9c68ae617bca720!8m2!3d48.8350076!4d2.4096267!16s%2Fg%2F11zzsk71ns?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+  base_lat: "48.8350076",
+  base_lng: "2.4096267",
   base_address: "CARPEO — Point de départ des tournées",
   auto_reminder_j1: "true",
   auto_quote_followup: "true",
@@ -176,13 +176,17 @@ function cleanText(value, max = 500) { return String(value ?? "").trim().slice(0
 function json(value) { return JSON.stringify(value ?? null); }
 function parseJson(value, fallback = null) { try { return JSON.parse(value); } catch { return fallback; } }
 
-// Ensure at least one admin user exists so the admin panel is always accessible locally
+// Ensure the configured admin user exists and matches the configured password
 const adminEmail = cleanText(process.env.CARPEO_ADMIN_EMAIL || "admin@carpeo.local", 200).toLowerCase();
 const adminPassword = process.env.CARPEO_ADMIN_PASSWORD || "CarpeoAdmin2026!";
-if (!db.prepare("SELECT id FROM users LIMIT 1").get()) {
-  const salt = crypto.randomBytes(16).toString("hex");
+const existingAdmin = db.prepare("SELECT id FROM users WHERE email=?").get(adminEmail);
+const adminSalt = crypto.randomBytes(16).toString("hex");
+if (!existingAdmin) {
   db.prepare("INSERT INTO users(email,name,role,salt,password_hash,created_at) VALUES(?,?,?,?,?,?)")
-    .run(adminEmail, "Administrateur CARPEO", "admin", salt, passwordHash(adminPassword, salt), now());
+    .run(adminEmail, "Administrateur CARPEO", "admin", adminSalt, passwordHash(adminPassword, adminSalt), now());
+} else {
+  db.prepare("UPDATE users SET role='admin', salt=?, password_hash=? WHERE id=?")
+    .run(adminSalt, passwordHash(adminPassword, adminSalt), existingAdmin.id);
 }
 
 function pricingPayload() {
@@ -232,8 +236,8 @@ function calculate(items, advance, promoCode = "") {
   const discount = promo ? (promo[0] === "pct" ? Math.round(base * promo[1]) / 100 : Math.min(base, promo[1])) : 0;
   const total = Math.round((base - discount) * 100) / 100;
   const due = advance === "oui" ? Math.round(total * 50) / 100 : total;
-  const deposit = Math.min(prices.deposit, due);
-  return { type: "reservation", total, deposit, balance: advance === "oui" ? due : Math.round((due - deposit) * 100) / 100, discount, pricedItems };
+  const deposit = prices.deposit || 20;
+  return { type: "reservation", total, deposit, balance: Math.max(0, Math.round((due - deposit) * 100) / 100), discount, pricedItems };
 }
 
 function stripeEvent(buffer, signature) {

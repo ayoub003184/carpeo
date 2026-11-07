@@ -132,8 +132,8 @@
       function paintTax() {
         var n = Math.max(0, parseFloat(String(tax.value).replace(",", ".")) || 0);
         var off = Math.round(n * 50) / 100;
-        outA.textContent = off.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
-        outB.textContent = (Math.round((n - off) * 100) / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
+        outA.textContent = off.toLocaleString("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        outB.textContent = (Math.round((n - off) * 100) / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
       }
       tax.addEventListener("input", paintTax);
       paintTax();

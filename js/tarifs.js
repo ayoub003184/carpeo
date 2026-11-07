@@ -12,7 +12,7 @@
       var item = pricing.get(key);
       var fixed = item.mode === "price";
       return "<tr><td>" + def.label + "</td><td>" + pricing.display(key) + "</td><td>" +
-        (fixed ? pricing.euro.format(Math.min(deposit, item.price)) : "Après devis") + "</td><td>" +
+        pricing.euro.format(deposit) + "</td><td>" +
         (fixed ? "Réservation" : "Devis") + "</td></tr>";
     }).join("");
   });

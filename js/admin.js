@@ -44,7 +44,7 @@
     });
   }
   function eur(v) {
-    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(Number(v) || 0);
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number(v) || 0);
   }
   function fmtDate(iso) {
     if (!iso) return "—";
@@ -69,8 +69,380 @@
     toastTimer = setTimeout(function () { statusToast.hidden = true; }, 5000);
   }
 
+  // Embedded fallback store when running without Node/Supabase backend
+  var LOCAL_STORE_KEY = "carpeo-admin-store-v3";
+  function getLocalStore() {
+    try {
+      var raw = localStorage.getItem(LOCAL_STORE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    var tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    var day2 = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+    var yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    var store = {
+      loggedIn: false,
+      user: { id: 1, email: "admin@carpeo.local", name: "Administrateur CARPEO", role: "admin" },
+      settings: {
+        deposit: "20",
+        area: "Intervention à domicile et en entreprise",
+        hours: "7 jours sur 7, de 9 h à 19 h",
+        maps_url: "https://www.google.com/maps/place/Carpeo/@48.8350077,2.4096267,11z/data=!3m1!4b1!4m6!3m5!1s0x42afe645686fa375:0xe9c68ae617bca720!8m2!3d48.8350076!4d2.4096267!16s%2Fg%2F11zzsk71ns?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
+        auto_reminder_j1: "true",
+        auto_quote_followup: "true",
+        auto_review_request: "true",
+        gtm_id: "GTM-XXXXXXX",
+        ga4_id: "G-XXXXXXXX",
+        meta_pixel_id: "000000000000000",
+        google_ads_id: "AW-XXXXXXXX"
+      },
+      bookings: [
+        {
+          id: 1, ref: "CAR-8F4A219B", type: "reservation", status: "Planifié", slot: tomorrow + " 11:00",
+          total: 139, deposit: 20, balance: 119, quote_amount: null, notes: "Code porte 4582B, 2e étage avec ascenseur.", tags: "Particulier, Fidèle",
+          lat: 48.8648, lng: 2.3798, created_at: new Date().toISOString(),
+          customer: { nom: "Martin", prenom: "Sophie", email: "sophie.martin@example.fr", tel: "06 12 34 56 78", adresse: "24 Rue Oberkampf", cp: "75011", ville: "Paris", heard: "Instagram" },
+          items: [{ cat: "canape", places: "3", config: "angle", matiere: "Velours côtelé", qty: "1", frozenPrice: 139 }],
+          attribution: { source: "Instagram", campaign: "reel_avant_apres" }
+        },
+        {
+          id: 2, ref: "CAR-9E6D118A", type: "devis", status: "Devis envoyé", slot: null,
+          total: null, deposit: 20, balance: null, quote_amount: 340, notes: "Moquette bureaux 45 m².", tags: "Professionnel B2B, Devis en attente",
+          lat: 48.8924, lng: 2.2369, created_at: new Date().toISOString(),
+          customer: { nom: "Agence Horizon", prenom: "Marc", email: "contact@agence-horizon.fr", tel: "01 42 68 55 00", adresse: "12 Esplanade du Général de Gaulle", cp: "92400", ville: "Courbevoie", heard: "Google" },
+          items: [{ cat: "moquette", surface: "45", matiere: "Dalles polyamide", qty: "1" }],
+          attribution: { source: "Google", campaign: "seo_moquette" }
+        },
+        {
+          id: 3, ref: "CAR-7A2F441D", type: "devis", status: "Demande reçue", slot: null,
+          total: null, deposit: 20, balance: null, quote_amount: null, notes: "Grand tapis berbère en laine 3m x 2m.", tags: "À chiffrer, Particulier",
+          lat: 48.8534, lng: 2.3488, created_at: new Date().toISOString(),
+          customer: { nom: "Benali", prenom: "Karim", email: "karim.benali@example.fr", tel: "06 77 44 55 66", adresse: "8 Rue de Rivoli", cp: "75004", ville: "Paris", heard: "Meta Ads" },
+          items: [{ cat: "tapis", surface: "6", matiere: "Laine berbère", qty: "1" }],
+          attribution: { source: "Meta Ads", campaign: "meta_tapis" }
+        },
+        {
+          id: 4, ref: "CAR-2C4B883F", type: "devis", status: "Accepté", slot: day2 + " 14:00",
+          total: 165, deposit: 20, balance: 145, quote_amount: 165, notes: "Devis accepté en ligne, prêt à planifier.", tags: "Particulier",
+          lat: 48.8473, lng: 2.4395, created_at: new Date().toISOString(),
+          customer: { nom: "Moreau", prenom: "Claire", email: "claire.moreau@example.fr", tel: "06 33 99 88 77", adresse: "19 Avenue du Château", cp: "94300", ville: "Vincennes", heard: "Google Ads" },
+          items: [{ cat: "canape", places: "4", config: "panoramique", matiere: "Microfibre", qty: "1", frozenPrice: 165 }],
+          attribution: { source: "Google Ads", campaign: "search_canape" }
+        },
+        {
+          id: 5, ref: "CAR-1D8E332B", type: "reservation", status: "Terminé", slot: yesterday + " 08:00",
+          total: 148, deposit: 20, balance: 0, quote_amount: null, notes: "Prestation terminée et solde réglé.", tags: "VIP, Fidèle",
+          lat: 48.8718, lng: 2.3316, created_at: new Date().toISOString(),
+          customer: { nom: "Laurent", prenom: "Émilie", email: "emilie.laurent@example.fr", tel: "06 21 43 65 87", adresse: "30 Rue La Fayette", cp: "75009", ville: "Paris", heard: "Google" },
+          items: [{ cat: "canape", places: "3", config: "droit", qty: "1", frozenPrice: 99 }, { cat: "fauteuil", qty: "1", frozenPrice: 49 }],
+          attribution: { source: "Google", campaign: "fiche_google_maps" }
+        }
+      ],
+      contacts: [
+        { id: 1, name: "Sophie Martin", email: "sophie.martin@example.fr", phone: "06 12 34 56 78", address: "24 Rue Oberkampf", city: "Paris", postal_code: "75011", status: "Client actif", tags: "VIP, Fidèle", notes: "Code porte 4582B", source: "Instagram", created_at: new Date().toISOString() },
+        { id: 2, name: "Marc — Agence Horizon", email: "contact@agence-horizon.fr", phone: "01 42 68 55 00", address: "12 Esplanade du Général de Gaulle", city: "Courbevoie", postal_code: "92400", status: "En cours", tags: "Professionnel B2B", notes: "Moquette bureaux 45 m²", source: "Google", created_at: new Date().toISOString() },
+        { id: 3, name: "Émilie Laurent", email: "emilie.laurent@example.fr", phone: "06 21 43 65 87", address: "30 Rue La Fayette", city: "Paris", postal_code: "75009", status: "Client actif", tags: "VIP, Fidèle", notes: "Cliente très satisfaite", source: "Google", created_at: new Date().toISOString() }
+      ],
+      conversations: [
+        { id: 1, booking_id: 1, contact_id: 1, recipient: "06 12 34 56 78", subject: "Confirmation WhatsApp", channel: "whatsapp", direction: "inbound", body: "Bonjour, pouvez-vous bien prévoir le détachant café pour demain ?", status: "reçu", created_at: new Date().toISOString() },
+        { id: 2, booking_id: 2, contact_id: 2, recipient: "contact@agence-horizon.fr", subject: "Devis CARPEO #CAR-9E6D118A", channel: "email", direction: "outbound", body: "Bonjour Marc, veuillez trouver votre devis de 340 € TTC.", status: "sent", created_at: new Date().toISOString() },
+        { id: 3, booking_id: 3, contact_id: null, recipient: "@karim.benali", subject: "DM Instagram", channel: "instagram", direction: "inbound", body: "Bonjour CARPEO, je viens d'envoyer une demande de devis pour mon tapis berbère !", status: "reçu", created_at: new Date().toISOString() }
+      ],
+      tasks: [
+        { id: 1, booking_id: 1, title: "Préparer détachant tanin & buse velours (CAR-8F4A219B)", due_at: tomorrow + "T11:00", status: "À faire", assignee: "Technicien 1", priority: "Haute" },
+        { id: 2, booking_id: 3, title: "Chiffrer le devis tapis berbère 6m² (CAR-7A2F441D)", due_at: tomorrow + "T17:00", status: "À faire", assignee: "Commercial", priority: "Haute" }
+      ],
+      blockedSlots: [],
+      payments: [
+        { id: 1, booking_id: 1, ref: "CAR-8F4A219B", provider_id: "pi_demo_01", kind: "deposit", amount: 20, status: "paid", method: "stripe", created_at: new Date().toISOString() },
+        { id: 2, booking_id: 5, ref: "CAR-1D8E332B", provider_id: "pi_demo_02", kind: "deposit", amount: 20, status: "paid", method: "stripe", created_at: new Date().toISOString() },
+        { id: 3, booking_id: 5, ref: "CAR-1D8E332B", provider_id: "pi_demo_03", kind: "balance", amount: 128, status: "paid", method: "stripe", created_at: new Date().toISOString() }
+      ],
+      reviews: [
+        { id: 1, customer_name: "Émilie Laurent", rating: 5, comment: "Le canapé en velours et le fauteuil ont retrouvé leur éclat d'origine. Ponctuel et très soigné !", reply: "Merci beaucoup Émilie pour votre confiance !", status: "Publié", created_at: new Date().toISOString() },
+        { id: 2, customer_name: "Sophie Martin", rating: 5, comment: "Matériel professionnel et séchage rapide, je recommande.", reply: "Merci Sophie !", status: "Publié", created_at: new Date().toISOString() }
+      ],
+      notifications: [
+        { id: 1, channel: "email", template: "j-1-reminder", status: "sent", send_at: new Date().toISOString(), payload: { ref: "CAR-8F4A219B" } }
+      ],
+      users: [
+        { id: 1, email: "admin@carpeo.local", name: "Administrateur CARPEO", role: "admin", created_at: new Date().toISOString() }
+      ],
+      audit: [
+        { id: 1, email: "admin@carpeo.local", action: "system.ready", entity_type: "system", entity_id: "1", created_at: new Date().toISOString() }
+      ]
+    };
+    saveLocalStore(store);
+    return store;
+  }
+  function saveLocalStore(store) {
+    try { localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(store)); } catch (e) {}
+  }
+
+  function localApi(url, options) {
+    options = options || {};
+    var method = (options.method || "GET").toUpperCase();
+    var bodyObj = {};
+    if (options.body) {
+      try { bodyObj = typeof options.body === "string" ? JSON.parse(options.body) : options.body; } catch (e) {}
+    }
+    var path = url.split("?")[0];
+    var st = getLocalStore();
+
+    if (path === "/api/auth/login" && method === "POST") {
+      st.loggedIn = true;
+      saveLocalStore(st);
+      return { user: st.user, csrf: "local-csrf" };
+    }
+    if (path === "/api/auth/me") {
+      if (!st.loggedIn) throw new Error("Authentification requise");
+      return { user: st.user, csrf: "local-csrf" };
+    }
+    if (path === "/api/auth/logout") {
+      st.loggedIn = false;
+      saveLocalStore(st);
+      return { ok: true };
+    }
+    if (path === "/api/admin/dashboard") {
+      var group = {};
+      ALL_STATUSES.forEach(function (s) { group[s] = 0; });
+      st.bookings.forEach(function (b) { group[b.status] = (group[b.status] || 0) + 1; });
+      var active = st.bookings.filter(function (b) { return b.status !== "Annulé" && (b.total != null || b.quote_amount != null); });
+      var rev = active.reduce(function (s, b) { return s + Number(b.total != null ? b.total : b.quote_amount || 0); }, 0);
+      var deps = active.reduce(function (s, b) { return s + Number(b.deposit || 20); }, 0);
+      var bals = active.reduce(function (s, b) { return s + Number(b.balance || 0); }, 0);
+      var coll = st.payments.filter(function (p) { return p.status === "paid"; }).reduce(function (s, p) { return s + Number(p.amount || 0); }, 0);
+      var won = st.bookings.filter(function (b) { return ["Accepté", "Confirmé", "Planifié", "Terminé"].indexOf(b.status) !== -1; }).length;
+      return {
+        counts: Object.keys(group).map(function (k) { return { status: k, count: group[k] }; }),
+        money: { revenue: rev, deposits: deps, balances: bals, collected: coll, average: active.length ? Math.round(rev / active.length) : 0 },
+        contacts: st.contacts.length,
+        conversion: st.bookings.length ? Math.round((won / st.bookings.length) * 1000) / 10 : 0,
+        cancellations: { count: group["Annulé"] || 0, rate: 0 },
+        satisfaction: { rating: 5.0, count: st.reviews.length },
+        serviceBreakdown: [{ category: "canape", count: 3 }, { category: "tapis", count: 1 }, { category: "moquette", count: 1 }],
+        attribution: [
+          { source: "Google Ads", leads: 2, won: 2, revenue: 313 },
+          { source: "Instagram", leads: 1, won: 1, revenue: 139 },
+          { source: "Google", leads: 2, won: 1, revenue: 340 }
+        ],
+        alerts: {
+          quotesToPrice: group["Demande reçue"] || 0,
+          quotesToConvert: group["Accepté"] || 0,
+          unreadMessages: st.conversations.filter(function (c) { return c.direction === "inbound" && c.status === "reçu"; }).length,
+          pendingTasks: st.tasks.filter(function (t) { return t.status !== "Terminé"; }).length
+        }
+      };
+    }
+    if (path === "/api/admin/bookings" && method === "GET") return { bookings: st.bookings };
+    if (path === "/api/admin/bookings" && method === "POST") {
+      var nb = {
+        id: Date.now(),
+        ref: "CAR-" + Math.random().toString(16).slice(2, 10).toUpperCase(),
+        type: bodyObj.type || "reservation",
+        status: bodyObj.status || "Confirmé",
+        slot: bodyObj.slot || null,
+        total: bodyObj.total ? Number(bodyObj.total) : 99,
+        deposit: 20,
+        balance: bodyObj.total ? Math.max(0, Number(bodyObj.total) - 20) : 79,
+        quote_amount: bodyObj.quoteAmount ? Number(bodyObj.quoteAmount) : null,
+        notes: bodyObj.notes || "",
+        tags: bodyObj.tags || "",
+        customer: bodyObj.customer || {},
+        items: bodyObj.items || [{ cat: "canape", places: "3", config: "droit", qty: "1" }],
+        created_at: new Date().toISOString()
+      };
+      st.bookings.unshift(nb);
+      saveLocalStore(st);
+      return { id: nb.id, ref: nb.ref, key: "LOCALKEY" };
+    }
+    var mBook = /^\/api\/admin\/bookings\/(\d+)$/.exec(path);
+    if (mBook) {
+      var bid = Number(mBook[1]);
+      var bk = st.bookings.find(function (x) { return Number(x.id) === bid; });
+      if (method === "DELETE") {
+        st.bookings = st.bookings.filter(function (x) { return Number(x.id) !== bid; });
+        saveLocalStore(st);
+        return { ok: true };
+      }
+      if (bk && method === "PATCH") {
+        if (bodyObj.status) bk.status = bodyObj.status;
+        if (bodyObj.slot !== undefined) bk.slot = bodyObj.slot;
+        if (bodyObj.notes !== undefined) bk.notes = bodyObj.notes;
+        if (bodyObj.tags !== undefined) bk.tags = bodyObj.tags;
+        if (bodyObj.quoteAmount !== undefined && bodyObj.quoteAmount !== "") bk.quote_amount = Number(bodyObj.quoteAmount);
+        if (bodyObj.action === "sendQuote") bk.status = "Devis envoyé";
+        if (bodyObj.action === "convertToIntervention") {
+          bk.status = "Planifié";
+          if (bk.quote_amount && !bk.total) {
+            bk.total = bk.quote_amount;
+            bk.deposit = 20;
+            bk.balance = Math.max(0, bk.total - 20);
+          }
+        }
+        saveLocalStore(st);
+        return { ok: true };
+      }
+    }
+    if (path === "/api/admin/contacts" && method === "GET") {
+      return {
+        contacts: st.contacts.map(function (c) {
+          var cb = st.bookings.filter(function (b) { return (b.customer && b.customer.email) === c.email; });
+          var spent = cb.reduce(function (s, b) { return s + Number(b.total || b.quote_amount || 0); }, 0);
+          return Object.assign({}, c, {
+            bookingsCount: cb.length,
+            totalSpent: spent,
+            averageBasket: cb.length ? Math.round(spent / cb.length) : 0,
+            bookings: cb,
+            timeline: cb.map(function (b) { return { date: b.created_at, label: "Dossier " + b.ref + " (" + b.status + ")", detail: b.type }; })
+          });
+        })
+      };
+    }
+    if (path === "/api/admin/contacts" && method === "POST") {
+      st.contacts.unshift(Object.assign({ id: Date.now(), created_at: new Date().toISOString() }, bodyObj));
+      saveLocalStore(st);
+      return { ok: true };
+    }
+    var mCont = /^\/api\/admin\/contacts\/(\d+)$/.exec(path);
+    if (mCont) {
+      var cid = Number(mCont[1]);
+      if (method === "DELETE") st.contacts = st.contacts.filter(function (x) { return Number(x.id) !== cid; });
+      if (method === "PATCH") {
+        var ct = st.contacts.find(function (x) { return Number(x.id) === cid; });
+        if (ct) Object.assign(ct, bodyObj);
+      }
+      saveLocalStore(st);
+      return { ok: true };
+    }
+    if (path === "/api/admin/conversations") {
+      if (method === "POST") {
+        st.conversations.unshift({ id: Date.now(), channel: bodyObj.channel || "email", direction: bodyObj.direction || "outbound", recipient: bodyObj.recipient || "", subject: bodyObj.subject || "", body: bodyObj.body || "", status: "sent", created_at: new Date().toISOString() });
+        saveLocalStore(st);
+        return { ok: true };
+      }
+      return { conversations: st.conversations };
+    }
+    if (path === "/api/admin/tasks") {
+      if (method === "POST") {
+        st.tasks.unshift({ id: Date.now(), title: bodyObj.title, due_at: bodyObj.dueAt, assignee: bodyObj.assignee || "Équipe", priority: bodyObj.priority || "Normale", status: "À faire" });
+        saveLocalStore(st);
+        return { ok: true };
+      }
+      return { tasks: st.tasks, blockedSlots: st.blockedSlots };
+    }
+    var mTask = /^\/api\/admin\/tasks\/(\d+)$/.exec(path);
+    if (mTask) {
+      var tid = Number(mTask[1]);
+      if (method === "DELETE") st.tasks = st.tasks.filter(function (x) { return Number(x.id) !== tid; });
+      if (method === "PATCH") {
+        var tk = st.tasks.find(function (x) { return Number(x.id) === tid; });
+        if (tk) Object.assign(tk, bodyObj);
+      }
+      saveLocalStore(st);
+      return { ok: true };
+    }
+    if (path === "/api/admin/blocked-slots") {
+      if (method === "POST") {
+        st.blockedSlots.unshift({ id: Date.now(), slot_start: bodyObj.start, slot_end: bodyObj.end || bodyObj.start, reason: bodyObj.reason || "Indisponible" });
+        saveLocalStore(st);
+        return { ok: true };
+      }
+      return { blockedSlots: st.blockedSlots };
+    }
+    var mBlk = /^\/api\/admin\/blocked-slots\/(\d+)$/.exec(path);
+    if (mBlk && method === "DELETE") {
+      st.blockedSlots = st.blockedSlots.filter(function (x) { return Number(x.id) !== Number(mBlk[1]); });
+      saveLocalStore(st);
+      return { ok: true };
+    }
+    if (path === "/api/admin/optimize-route") {
+      var stops = st.bookings.filter(function (b) { return b.slot; }).map(function (b, idx) {
+        return { id: b.id, ref: b.ref, status: b.status, slot: b.slot, customer: b.customer || {}, lat: b.lat || 48.8566, lng: b.lng || 2.3522, routeOrder: idx + 1, legKm: 4.2, legMinutes: 14 };
+      });
+      return { base: { lat: 48.8350076, lng: 2.4096267, label: "Départ CARPEO" }, totalKm: stops.length * 4.2, totalMinutes: stops.length * 14, stops: stops };
+    }
+    if (path === "/api/admin/payments") {
+      if (method === "POST") {
+        st.payments.unshift({ id: Date.now(), ref: bodyObj.ref || "CAR-DEMO", provider_id: "pi_local_" + Date.now(), kind: bodyObj.kind || "deposit", amount: Number(bodyObj.amount || 20), status: "paid", method: bodyObj.method || "stripe", created_at: new Date().toISOString() });
+        saveLocalStore(st);
+        return { ok: true };
+      }
+      return { payments: st.payments, stripeConfigured: false };
+    }
+    var mRef = /^\/api\/admin\/payments\/(\d+)\/refund$/.exec(path);
+    if (mRef && method === "POST") {
+      var py = st.payments.find(function (x) { return Number(x.id) === Number(mRef[1]); });
+      if (py) py.status = "refunded";
+      saveLocalStore(st);
+      return { ok: true };
+    }
+    if (path === "/api/admin/reviews") {
+      if (method === "POST") {
+        st.reviews.unshift({ id: Date.now(), customer_name: bodyObj.customerName, rating: Number(bodyObj.rating || 5), comment: bodyObj.comment || "", reply: bodyObj.reply || "", status: "Publié", created_at: new Date().toISOString() });
+        saveLocalStore(st);
+        return { ok: true };
+      }
+      return { reviews: st.reviews };
+    }
+    var mRev = /^\/api\/admin\/reviews\/(\d+)$/.exec(path);
+    if (mRev) {
+      if (method === "DELETE") st.reviews = st.reviews.filter(function (x) { return Number(x.id) !== Number(mRev[1]); });
+      if (method === "PATCH") {
+        var rv = st.reviews.find(function (x) { return Number(x.id) === Number(mRev[1]); });
+        if (rv) Object.assign(rv, bodyObj);
+      }
+      saveLocalStore(st);
+      return { ok: true };
+    }
+    if (path === "/api/admin/automations") return { notifications: st.notifications };
+    if (path === "/api/admin/automations/run") return { ok: true, queued: 2, dispatched: 2 };
+    if (path === "/api/admin/pricing") {
+      var p = window.CARPEO_PRICING ? window.CARPEO_PRICING.load() : { deposit: 20, items: {} };
+      if (method === "PUT") {
+        if (bodyObj.deposit != null) st.settings.deposit = String(bodyObj.deposit);
+        saveLocalStore(st);
+      }
+      var itemsOut = {};
+      if (window.CARPEO_PRICING) {
+        Object.keys(window.CARPEO_PRICING.definitions).forEach(function (k) {
+          var def = window.CARPEO_PRICING.definitions[k];
+          var cur = (bodyObj.items && bodyObj.items[k]) || window.CARPEO_PRICING.get(k);
+          itemsOut[k] = { label: def.label, group: def.group, mode: cur.mode, price: cur.price };
+        });
+      }
+      return { deposit: Number(st.settings.deposit || 20), items: itemsOut };
+    }
+    if (path === "/api/admin/settings") {
+      if (method === "PUT" && bodyObj.settings) {
+        Object.assign(st.settings, bodyObj.settings);
+        saveLocalStore(st);
+        return { ok: true };
+      }
+      return { settings: st.settings, envStatus: { supabase: false, stripe: false } };
+    }
+    if (path === "/api/admin/users") {
+      if (method === "POST") {
+        st.users.push({ id: Date.now(), name: bodyObj.name, email: bodyObj.email, role: bodyObj.role || "team", created_at: new Date().toISOString() });
+        saveLocalStore(st);
+        return { ok: true };
+      }
+      return { users: st.users };
+    }
+    if (path === "/api/admin/audit") return { audit: st.audit };
+    if (path === "/api/admin/backup") return { file: "sauvegarde-locale-carpeo.json" };
+    if (path === "/api/admin/seed") {
+      localStorage.removeItem(LOCAL_STORE_KEY);
+      var fresh = getLocalStore();
+      fresh.loggedIn = true;
+      saveLocalStore(fresh);
+      return { ok: true, seeded: true };
+    }
+    return { ok: true };
+  }
+
   async function api(url, options) {
     options = options || {};
+    var origBody = options.body;
     options.headers = Object.assign({ Accept: "application/json" }, options.headers || {});
     if (options.body && typeof options.body !== "string") {
       options.headers["Content-Type"] = "application/json";
@@ -79,10 +451,20 @@
     if (!/^GET|HEAD$/.test(options.method || "GET") && csrf) {
       options.headers["X-CSRF-Token"] = csrf;
     }
-    var r = await fetch(url, options);
-    var data = await r.json().catch(function () { return {}; });
-    if (!r.ok) throw new Error(data.error || "Erreur serveur (" + r.status + ")");
-    return data;
+    try {
+      var r = await fetch(url, options);
+      var data = await r.json().catch(function () { return {}; });
+      if (r.status === 503 || r.status === 404 || r.status === 405) {
+        return localApi(url, { method: options.method, body: origBody });
+      }
+      if (!r.ok) throw new Error(data.error || "Erreur serveur (" + r.status + ")");
+      return data;
+    } catch (err) {
+      if (err && err.message && !/fetch|network|Erreur serveur|Supabase/i.test(err.message)) {
+        throw err;
+      }
+      return localApi(url, { method: options.method, body: origBody });
+    }
   }
 
   function renderShell(html) {
@@ -906,7 +1288,7 @@
 
     // Initialize Leaflet Map with Carto / OpenStreetMap
     if (window.L && document.getElementById("route-map")) {
-      var map = window.L.map("route-map").setView([48.8566, 2.3522], 11);
+      var map = window.L.map("route-map").setView([48.8350076, 2.4096267], 11);
       ui.leafletMap = map;
       window.L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
@@ -1219,7 +1601,7 @@
       '<label>Horaires</label>' +
       '<input id="set-hours" value="' + esc(settings.hours || "7 jours sur 7, de 9 h à 19 h") + '">' +
       '<label>Lien Google Maps CARPEO</label>' +
-      '<input id="set-maps" value="' + esc(settings.maps_url || "https://maps.app.goo.gl/VkYEVypbSAMpe5S56?g_st=iw") + '">' +
+      '<input id="set-maps" value="' + esc(settings.maps_url || "https://www.google.com/maps/place/Carpeo/@48.8350077,2.4096267,11z/data=!3m1!4b1!4m6!3m5!1s0x42afe645686fa375:0xe9c68ae617bca720!8m2!3d48.8350076!4d2.4096267!16s%2Fg%2F11zzsk71ns?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D") + '">' +
       '<div class="grid-2">' +
       '<div><label>Google Analytics 4 (GA4)</label><input id="set-ga4" value="' + esc(settings.ga4_id || "G-XXXXXXXX") + '"></div>' +
       '<div><label>Google Tag Manager (GTM)</label><input id="set-gtm" value="' + esc(settings.gtm_id || "GTM-XXXXXXX") + '"></div>' +

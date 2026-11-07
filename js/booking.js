@@ -1,5 +1,5 @@
 (function () {
-  var euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+  var euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
   var pricing = window.CARPEO_PRICING;
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -234,8 +234,8 @@
     var net = Math.round((base - off) * 100) / 100;
     var avance = state.avance === "oui";
     var due = avance ? Math.round(net * 50) / 100 : net;
-    var deposit = Math.min(pricing.load().deposit, due);
-    var rest = avance ? due : Math.round((due - deposit) * 100) / 100;
+    var deposit = pricing.load().deposit || 20;
+    var rest = Math.max(0, Math.round((due - deposit) * 100) / 100);
     return { base: base, off: off, net: net, avance: avance, due: due, deposit: deposit, rest: rest, code: promo ? code : "" };
   }
 
@@ -247,16 +247,16 @@
       return "<li>Textile " + (i + 1) + " — " + item.cat + (p == null ? " — devis" : " — " + euro.format(p)) + "</li>";
     }).join("");
     var promoBox = '<label for="promo">Vous avez un code promo ?</label><div class="btn-row"><input id="promo" value="' + esc(state.promo) + '" placeholder="BIENVENUE10" style="max-width:220px"><button type="button" class="btn btn-ghost" id="apply-promo">Appliquer</button></div><p class="note">' + esc(state.promoMsg) + '</p>';
-    var avanceBox = '<fieldset><legend>Souhaitez-vous bénéficier de l\'avance immédiate ?</legend><label><input type="radio" name="avance" value="oui"' + (state.avance === "oui" ? " checked" : "") + '> Oui, je souhaite bénéficier de l\'avance immédiate</label><label><input type="radio" name="avance" value="non"' + (state.avance !== "oui" ? " checked" : "") + '> Non, je souhaite régler la totalité de la prestation</label><p class="note">Si vous choisissez oui, prévoyez 5 à 10 minutes à l\'arrivée pour finaliser l\'inscription Urssaf avec nous. Le montant dépend de votre éligibilité.</p></fieldset>';
+    var avanceBox = '<fieldset><legend>Souhaitez-vous bénéficier de l\'avance immédiate (-50 % crédit d\'impôt) ?</legend><label><input type="radio" name="avance" value="oui"' + (state.avance === "oui" ? " checked" : "") + '> Oui, je souhaite bénéficier de l\'avance immédiate (-50 %)</label><label><input type="radio" name="avance" value="non"' + (state.avance !== "oui" ? " checked" : "") + '> Non, je souhaite régler la totalité de la prestation</label><p class="note">Si vous choisissez oui, prévoyez 5 à 10 minutes à l\'arrivée pour finaliser l\'inscription Urssaf avec nous. L\'acompte de réservation reste fixe à ' + euro.format(money.deposit) + ' pour toutes les prestations.</p></fieldset>';
     var pay = q
-      ? '<p>Ce dossier demande une estimation. Aucun paiement n\'est demandé maintenant.</p>'
+      ? '<p>Ce dossier demande une estimation personnalisée. Aucun paiement n\'est demandé maintenant. L’acompte fixe de <strong>' + euro.format(money.deposit) + '</strong> sera demandé uniquement après acceptation du devis.</p>'
       : promoBox + avanceBox +
-        '<dl class="summary"><dt>Prix</dt><dd>' + euro.format(money.base) + '</dd>' +
+        '<dl class="summary"><dt>Prix de la prestation</dt><dd>' + euro.format(money.base) + '</dd>' +
         (money.off ? '<dt>Réduction ' + money.code + '</dt><dd>− ' + euro.format(money.off) + '</dd>' : '') +
-        (money.avance ? '<dt>Avantage indicatif 50 %</dt><dd>' + euro.format(money.net - money.due) + '</dd><dt>Reste à charge</dt><dd>' + euro.format(money.due) + '</dd>' : '') +
-        '<dt>Acompte de réservation</dt><dd>' + euro.format(money.deposit) + '</dd><dt>' + (money.avance ? "Montant à régler après remboursement de l’acompte" : "Solde") + '</dt><dd>' + euro.format(money.rest) + '</dd></dl>' +
-        (money.avance ? '<p class="note">Avec l’avance immédiate, l’acompte est remboursé à la fin de la prestation.</p>' : '<p class="note">Sans l’avance immédiate, l’acompte est déduit du montant total.</p>') +
-        '<div class="stripe-box"><strong>Paiement sécurisé</strong><p>Après confirmation, le dossier est enregistré et l’acompte peut être réglé via Stripe lorsqu’il est activé.</p><p class="note">Créneau : ' + (state.slot || "—") + '.</p></div>' +
+        (money.avance ? '<dt>Avantage crédit d\'impôt 50 %</dt><dd>− ' + euro.format(money.net - money.due) + '</dd><dt>Montant après crédit d\'impôt</dt><dd>' + euro.format(money.due) + '</dd>' : '') +
+        '<dt>Acompte fixe (toutes prestations)</dt><dd>' + euro.format(money.deposit) + '</dd><dt>Solde restant après acompte</dt><dd>' + euro.format(money.rest) + '</dd></dl>' +
+        '<p class="note">L’acompte pour toutes les prestations est fixe à ' + euro.format(money.deposit) + ' (et non 50 % du montant). Il est déduit du montant à régler.</p>' +
+        '<div class="stripe-box"><strong>Paiement sécurisé</strong><p>Après confirmation, le dossier est enregistré et l’acompte de ' + euro.format(money.deposit) + ' peut être réglé en ligne.</p><p class="note">Créneau : ' + (state.slot || "—") + '.</p></div>' +
         '<label><input type="checkbox" id="cgv" style="width:auto"> J\'accepte les <a href="cgv.html">conditions</a> avant de confirmer.</label>' +
       '<p class="field-error" id="pay-error" hidden>Acceptez les conditions pour confirmer.</p>';
     return '<div class="panel"><h3>' + (q ? "Votre demande de devis" : "Récapitulatif") + '</h3><ul>' + lines + "</ul>" + pay +

@@ -20,7 +20,7 @@
     { name: "Coussin", key: "cushion", icon: sofa, item: { cat: "coussin" } }
   ];
 
-  var euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+  var euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
   var qty = catalog.map(function () { return 0; });
 
   function lineTotal(entry, n) {
