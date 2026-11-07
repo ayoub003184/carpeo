@@ -562,7 +562,7 @@ page("cgv.html", "Conditions générales — CARPEO",
 
 pages = [
 "index.html","services.html","canapes.html","matelas.html","tapis.html","moquettes.html",
-"fauteuils.html","chaises.html","coussins.html","tetes-de-lit.html","realisations.html","professionnels.html",
+"fauteuils.html","chaises.html","coussins.html","tetes-de-lit.html","professionnels.html",
 "tarifs.html","a-propos.html","faq.html","contact.html",
 "reserver.html","suivi.html","mentions-legales.html","confidentialite.html","cgv.html"
 ]
