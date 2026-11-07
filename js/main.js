@@ -66,7 +66,19 @@
       var range = box.querySelector(".ba-range");
       function set(v) { box.style.setProperty("--pos", v + "%"); }
       set(range.value);
-      range.addEventListener("input", function () { set(range.value); });
+      var stopped = false;
+      range.addEventListener("input", function () { stopped = true; set(range.value); });
+      if (!reduce) {
+        var start = performance.now();
+        function sweep(now) {
+          if (stopped) return;
+          var elapsed = now - start;
+          var value = elapsed < 1500 ? 25 + (elapsed / 1500) * 50 : 75 - Math.min(1, (elapsed - 1500) / 1200) * 17;
+          range.value = String(Math.round(value)); set(range.value);
+          if (elapsed < 2700) requestAnimationFrame(sweep);
+        }
+        requestAnimationFrame(sweep);
+      }
     });
 
     var cfg = window.CARPEO || {};
@@ -129,7 +141,7 @@
 
     var form = document.getElementById("contact-form");
     if (form) {
-      form.addEventListener("submit", function (e) {
+      form.addEventListener("submit", async function (e) {
         e.preventDefault();
         var ok = true;
         form.querySelectorAll("[required]").forEach(function (field) {
@@ -145,9 +157,13 @@
           }
         });
         if (!ok) return;
-        if (window.carpeoTrack) window.carpeoTrack("Contact", { method: "form" });
-        form.hidden = true;
-        document.getElementById("contact-done").hidden = false;
+        var button = form.querySelector('button[type="submit"]'); button.disabled = true; button.textContent = "Envoi…";
+        try {
+          var response = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: document.getElementById("c-nom").value, email: document.getElementById("c-email").value, phone: document.getElementById("c-tel").value, need: document.getElementById("c-need").value, message: document.getElementById("c-msg").value }) });
+          var data = await response.json(); if (!response.ok) throw new Error(data.error || "Envoi impossible");
+          if (window.carpeoTrack) window.carpeoTrack("Contact", { method: "form" });
+          form.hidden = true; var done=document.getElementById("contact-done"); done.textContent="Votre message a bien été transmis à CARPEO. Nous vous répondrons rapidement."; done.hidden=false;
+        } catch (error) { button.disabled=false; button.textContent="Envoyer mon message"; var done=document.getElementById("contact-done"); done.textContent=error.message; done.hidden=false; }
       });
     }
   });

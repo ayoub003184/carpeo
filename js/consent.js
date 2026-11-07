@@ -40,6 +40,7 @@
   }
 
   window.carpeoTrack = function (name, params) {
+    fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name, params: params || {} }), keepalive: true }).catch(function () {});
     var consent = read();
     if (!consent || (!consent.analytics && !consent.ads)) return;
     window.dataLayer = window.dataLayer || [];

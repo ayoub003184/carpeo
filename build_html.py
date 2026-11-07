@@ -68,6 +68,7 @@ FOOT = """
 <a class="call-fab" href="contact.html" data-call aria-label="Appeler CARPEO">
   <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#fff" stroke-width="1.6"><path d="M7 3h3l1 4-2 1a12 12 0 0 0 6 6l1-2 4 1v3a2 2 0 0 1-2 2A16 16 0 0 1 5 5a2 2 0 0 1 2-2z"/></svg>
 </a>
+<a class="ig-fab" data-instagram href="https://www.instagram.com/carpeo_?rpxt=MWtnNThpeGRlbjl3YQ%3D%3D&amp;utm_source=qr" target="_blank" rel="noopener" aria-label="Suivre CARPEO sur Instagram"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
 <script src="js/config.js"></script>
 <script src="js/pricing.js"></script>
 <script src="js/consent.js"></script>
@@ -135,14 +136,14 @@ INDEX = f"""
     </div>
   </div>
 </section>
-<section class="section" style="background:var(--mist)">
+  <section class="section" style="background:var(--mist)" data-home-keep>
   <div class="wrap grid-2">
     <div class="reveal">
       <p class="sur">Avant / après</p>
       <div class="gradient-bar"></div>
       <h2>Le même canapé, avant le passage</h2>
-      <p>Faites glisser le curseur. L'image « avant » est une simulation sur la photo de droite : elle montre le fonctionnement du comparateur, pas un chantier CARPEO.</p>
-      <p class="note">Photo à déposer : le même textile, même cadrage, avant et après l'extraction.</p>
+      <p>Faites glisser le curseur pour comparer le canapé sale avant l’intervention et son rendu après nettoyage.</p>
+      <p class="note">Illustration du résultat attendu ; chaque textile et chaque tache réagissent différemment.</p>
     </div>
     <div class="ba reveal" data-ba style="--pos:58%">
       <img src="assets/photos/canape-avant-sale.webp" width="1400" height="933" alt="Canapé vert visiblement sale avant nettoyage, avec salissures incrustées et taches réalistes.">

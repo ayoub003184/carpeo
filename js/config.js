@@ -3,6 +3,7 @@ window.CARPEO = {
   email: "contact@carpeo.fr",
   phone: "+33 6 15 14 45 66",
   whatsapp: "33615144566",
+  instagram: "https://www.instagram.com/carpeo_?rpxt=MWtnNThpeGRlbjl3YQ%3D%3D&utm_source=qr",
   siteLabel: "www.carpeo.fr",
   siteUrl: "https://www.carpeo.fr",
   area: "Paris et ses alentours — Île-de-France",

@@ -210,7 +210,7 @@
     }
 
     if (!quoteMode() && state.step === 2) {
-      html += '<div class="panel"><h3>Créneaux indicatifs</h3><p class="note">Données de démonstration. Un créneau choisi est réservé 15 minutes dans ce navigateur, le temps de passer à l\'acompte.</p><div id="days"></div></div>';
+      html += '<div class="panel"><h3>Créneaux disponibles</h3><p class="note">Les disponibilités sont synchronisées avec le planning CARPEO.</p><div id="days"><p>Chargement…</p></div></div>';
       html += '<p class="field-error" id="slot-error" hidden>Choisissez un créneau libre.</p>';
       html += '<div class="btn-row"><button type="button" class="btn btn-ghost" id="prev">Retour</button><button type="button" class="btn btn-ocean" id="next">Voir le prix</button></div>';
     }
@@ -256,38 +256,36 @@
         (money.avance ? '<dt>Avantage indicatif 50 %</dt><dd>' + euro.format(money.net - money.due) + '</dd><dt>Reste à charge</dt><dd>' + euro.format(money.due) + '</dd>' : '') +
         '<dt>Acompte de réservation</dt><dd>' + euro.format(money.deposit) + '</dd><dt>' + (money.avance ? "Montant à régler après remboursement de l’acompte" : "Solde") + '</dt><dd>' + euro.format(money.rest) + '</dd></dl>' +
         (money.avance ? '<p class="note">Avec l’avance immédiate, l’acompte est remboursé à la fin de la prestation.</p>' : '<p class="note">Sans l’avance immédiate, l’acompte est déduit du montant total.</p>') +
-        '<div class="stripe-box"><strong>Paiement</strong><p>Écran préparé pour Stripe ou un autre prestataire. Aucune carte n\'est demandée.</p><p class="note">Créneau : ' + (state.slot || "—") + '.</p></div>' +
+        '<div class="stripe-box"><strong>Paiement sécurisé</strong><p>Après confirmation, le dossier est enregistré et l’acompte peut être réglé via Stripe lorsqu’il est activé.</p><p class="note">Créneau : ' + (state.slot || "—") + '.</p></div>' +
         '<label><input type="checkbox" id="cgv" style="width:auto"> J\'accepte les <a href="cgv.html">conditions</a> avant de confirmer.</label>' +
-        '<p class="field-error" id="pay-error" hidden>Acceptez les conditions pour continuer la simulation.</p>';
+      '<p class="field-error" id="pay-error" hidden>Acceptez les conditions pour confirmer.</p>';
     return '<div class="panel"><h3>' + (q ? "Votre demande de devis" : "Récapitulatif") + '</h3><ul>' + lines + "</ul>" + pay +
       '<div class="btn-row"><button type="button" class="btn btn-ghost" id="prev">Retour</button><button type="button" class="btn btn-ocean" id="confirm">' +
-      (q ? "Envoyer la demande" : "Simuler le paiement de l'acompte") + "</button></div></div>";
+      (q ? "Envoyer la demande" : "Confirmer la réservation") + "</button></div></div>";
   }
 
-  function renderCalendar() {
+  async function renderCalendar() {
     var host = document.getElementById("days");
     if (!host) return;
-    var now = new Date();
     var html = "";
-    for (var d = 1; d <= 12; d++) {
-      var day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
-      if (day.getDay() === 0) continue;
-      var label = day.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-      var iso = day.getFullYear() + "-" + String(day.getMonth() + 1).padStart(2, "0") + "-" + String(day.getDate()).padStart(2, "0");
-      html += "<p><strong>" + label + "</strong></p><div class='slots'>";
-      ["08:00", "11:00", "14:00", "17:00"].forEach(function (time) {
-        var id = iso + " " + time;
-        var blocked = (day.getDate() + time.charCodeAt(0)) % 5 === 0;
-        var pressed = state.slot === id;
-        html += '<button type="button" class="slot" data-slot="' + id + '" aria-pressed="' + pressed + '"' + (blocked ? " disabled" : "") + ">" + time + (blocked ? " indisponible" : "") + "</button>";
+    try {
+      var response = await fetch("/api/slots", { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error();
+      var payload = await response.json();
+      (payload.days || []).forEach(function (day) {
+        var date = new Date(day.date + "T12:00:00");
+        html += "<p><strong>" + date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) + "</strong></p><div class='slots'>";
+        (day.slots || []).forEach(function (slot) {
+          var id = slot.value || (day.date + " " + slot.time);
+          html += '<button type="button" class="slot" data-slot="' + id + '" aria-pressed="' + (state.slot === id) + '"' + (slot.available === false ? " disabled" : "") + ">" + (slot.time || id.slice(-5)) + (slot.available === false ? " indisponible" : "") + "</button>";
+        });
+        html += "</div>";
       });
-      html += "</div>";
-    }
+    } catch (error) { html = '<p class="field-error">Impossible de charger le planning. Réessayez dans un instant.</p>'; }
     host.innerHTML = html;
     host.querySelectorAll("[data-slot]").forEach(function (b) {
       b.addEventListener("click", function () {
         state.slot = b.getAttribute("data-slot");
-        sessionStorage.setItem("carpeo-hold", JSON.stringify({ slot: state.slot, until: Date.now() + 15 * 60 * 1000 }));
         renderCalendar();
       });
     });
@@ -339,7 +337,7 @@
     if (next) next.onclick = function () {
       readItems();
       if (state.step === 1 && !validCustomer()) return;
-      if (!quoteMode() && state.step === 2 && !holdOk()) {
+      if (!quoteMode() && state.step === 2 && !state.slot) {
         document.getElementById("slot-error").hidden = false;
         return;
       }
@@ -388,55 +386,42 @@
     return ok;
   }
 
-  function holdOk() {
-    var raw = sessionStorage.getItem("carpeo-hold");
-    if (!raw || !state.slot) return false;
-    var hold = JSON.parse(raw);
-    return hold.slot === state.slot && hold.until > Date.now();
+  function photoData() {
+    var files = Object.keys(state.files).reduce(function (all, key) { return all.concat(state.files[key] || []); }, []);
+    return Promise.all(files.slice(0, 16).map(function (file) { return new Promise(function (resolve) { var reader = new FileReader(); reader.onload = function () { resolve({ name: file.name, type: file.type, data: reader.result }); }; reader.onerror = function () { resolve(null); }; reader.readAsDataURL(file); }); })).then(function (items) { return items.filter(Boolean); });
   }
 
-  function finish() {
+  async function finish() {
     if (!quoteMode() && !document.getElementById("cgv").checked) {
       document.getElementById("pay-error").hidden = false;
       return;
     }
-    var ref = "CAR-" + Math.random().toString(36).slice(2, 6).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
-    var key = Math.random().toString(36).slice(2, 8).toUpperCase();
     var q = quoteMode();
     var money = quotePrice();
-    var dossier = {
-      ref: ref,
-      key: key,
-      type: q ? "devis" : "reservation",
-      status: q ? "Demande reçue" : "Acompte simulé — en attente de Stripe",
-      items: state.items,
-      customer: state.customer,
-      slot: q ? "" : state.slot,
-      total: q ? null : money.net,
-      deposit: q ? null : money.deposit,
-      balance: q ? null : money.rest,
-      promo: money.code,
-      avance: state.avance,
-      created: new Date().toISOString()
-    };
-    var all = [];
-    try { all = JSON.parse(localStorage.getItem("carpeo-dossiers") || "[]"); } catch (e) { all = []; }
-    all.push(dossier);
-    localStorage.setItem("carpeo-dossiers", JSON.stringify(all));
-    sessionStorage.removeItem("carpeo-hold");
+    var button = document.getElementById("confirm");
+    button.disabled = true; button.textContent = "Envoi en cours…";
+    var dossier;
+    try {
+      var response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ items: state.items, customer: state.customer, slot: q ? "" : state.slot, promo: money.code, advance: state.avance, photos: await photoData() }) });
+      dossier = await response.json();
+      if (!response.ok) throw new Error(dossier.error || "La demande n’a pas pu être enregistrée.");
+    } catch (error) {
+      button.disabled = false; button.textContent = q ? "Envoyer la demande" : "Confirmer la réservation";
+      var errorBox = document.getElementById("pay-error"); errorBox.hidden = false; errorBox.textContent = error.message; return;
+    }
     if (window.carpeoTrack) {
-      window.carpeoTrack(q ? "Lead" : "Purchase", q ? { kind: "devis" } : { value: money.deposit, currency: "EUR", kind: "acompte-simule" });
+      window.carpeoTrack(q ? "Lead" : "Booking", q ? { kind: "devis" } : { value: dossier.deposit, currency: "EUR" });
     }
     var root = document.getElementById("booking");
     root.innerHTML = '<div class="panel"><p class="sur">Confirmation</p><h2>' + (q ? "Demande envoyée" : "Réservation préparée") + '</h2>' +
       '<p>Conservez ces deux codes. Ils ouvrent le suivi de ce dossier sur cet appareil.</p>' +
-      '<dl class="summary"><dt>Référence</dt><dd>' + ref + '</dd><dt>Clé</dt><dd>' + key + '</dd><dt>Statut</dt><dd>' + dossier.status + '</dd></dl>' +
-      (q ? "" : "<p>Total " + euro.format(money.net) + " · acompte " + euro.format(money.deposit) + " · reste " + euro.format(money.rest) + ".</p>") +
-      '<p class="note">Aucune notification réelle n\'est partie : il n\'y a pas encore de serveur, d\'e-mail ni de compte Stripe.</p>' +
-      '<a class="btn btn-ocean" href="suivi.html?ref=' + encodeURIComponent(ref) + '&cle=' + encodeURIComponent(key) + '">Voir le suivi</a></div>';
+      '<dl class="summary"><dt>Référence</dt><dd>' + dossier.ref + '</dd><dt>Clé d’accès</dt><dd>' + dossier.key + '</dd><dt>Statut</dt><dd>' + dossier.status + '</dd></dl>' +
+      (q ? "" : "<p>Total " + euro.format(dossier.total) + " · acompte " + euro.format(dossier.deposit) + " · reste " + euro.format(dossier.balance) + ".</p>") +
+      '<p class="note">Conservez la référence et la clé pour consulter ce dossier de manière sécurisée.</p>' +
+      '<a class="btn btn-ocean" href="suivi.html?ref=' + encodeURIComponent(dossier.ref) + '&cle=' + encodeURIComponent(dossier.key) + '">Voir le suivi</a></div>';
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
+  document.addEventListener("DOMContentLoaded", async function () {
     if (!document.getElementById("booking")) return;
     var params = new URLSearchParams(location.search);
     var stored = null;
@@ -452,6 +437,7 @@
         return b;
       });
     } else if (params.get("parcours") === "devis") state.items = [{ cat: "tapis", places: "3", config: "droit", matiere: "", qty: "1", faces: "1", length: "", width: "", surface: "", size: "", desc: "", stain: "", age: "", odor: "non", use: "", caution: "" }];
+    if (pricing && pricing.ready) await pricing.ready;
     render();
   });
 })();

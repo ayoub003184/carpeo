@@ -1,63 +1,17 @@
-(function () {
-  "use strict";
-
-  var pricing = window.CARPEO_PRICING;
-  var form = document.getElementById("pricing-admin");
-  var status = document.getElementById("admin-status");
-  if (!pricing || !form) return;
-
-  function row(key, definition, value) {
-    return '<tr><td><strong>' + definition.label + '</strong></td>' +
-      '<td><label class="sr" for="mode-' + key + '">Mode</label><select id="mode-' + key + '" data-mode="' + key + '">' +
-      '<option value="price"' + (value.mode === "price" ? " selected" : "") + '>Prix affiché</option>' +
-      '<option value="quote"' + (value.mode === "quote" ? " selected" : "") + '>Sur devis</option></select></td>' +
-      '<td><label class="sr" for="price-' + key + '">Prix</label><input id="price-' + key + '" data-price="' + key + '" type="number" min="0" step="0.01" value="' + value.price + '"></td></tr>';
-  }
-
-  function paint() {
-    var settings = pricing.load();
-    var groups = {};
-    Object.keys(pricing.definitions).forEach(function (key) {
-      var def = pricing.definitions[key];
-      (groups[def.group] = groups[def.group] || []).push(key);
-    });
-    var html = '<div class="panel"><label for="deposit-admin">Acompte de réservation (€)</label>' +
-      '<input id="deposit-admin" type="number" min="0" step="0.01" value="' + settings.deposit + '" style="max-width:180px"></div>';
-    Object.keys(groups).forEach(function (group) {
-      html += '<h2>' + group + '</h2><div class="table-wrap"><table><thead><tr><th>Prestation</th><th>Affichage</th><th>Prix (€)</th></tr></thead><tbody>';
-      groups[group].forEach(function (key) { html += row(key, pricing.definitions[key], settings.items[key]); });
-      html += '</tbody></table></div>';
-    });
-    html += '<div class="btn-row" style="margin-top:1rem"><button class="btn btn-ocean" type="submit">Enregistrer</button>' +
-      '<button class="btn btn-ghost" type="button" id="admin-reset">Rétablir les valeurs initiales</button></div>';
-    form.innerHTML = html;
-    document.querySelectorAll("[data-mode]").forEach(function (select) {
-      function sync() {
-        var input = document.querySelector('[data-price="' + select.getAttribute("data-mode") + '"]');
-        input.disabled = select.value === "quote";
-      }
-      select.addEventListener("change", sync);
-      sync();
-    });
-    document.getElementById("admin-reset").onclick = function () {
-      pricing.reset();
-      paint();
-      status.textContent = "Valeurs initiales rétablies.";
-    };
-  }
-
-  form.addEventListener("submit", function (event) {
-    event.preventDefault();
-    var settings = pricing.load();
-    settings.deposit = Math.max(0, Number(document.getElementById("deposit-admin").value) || 0);
-    Object.keys(settings.items).forEach(function (key) {
-      settings.items[key].mode = document.querySelector('[data-mode="' + key + '"]').value;
-      settings.items[key].price = Math.max(0, Number(document.querySelector('[data-price="' + key + '"]').value) || 0);
-    });
-    pricing.save(settings);
-    status.textContent = "Tarifs enregistrés dans ce navigateur. Les pages utilisent maintenant ces valeurs.";
-    pricing.render(document);
-  });
-
-  paint();
+(function(){"use strict";
+var csrf="",app=document.getElementById("admin-app"),login=document.getElementById("login-panel"),status=document.getElementById("admin-status"),active="dashboard";
+function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}function eur(v){return new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"}).format(Number(v)||0);}function note(v){status.textContent=v||"";}
+async function api(url,options){options=options||{};options.headers=Object.assign({Accept:"application/json"},options.headers||{});if(options.body&&typeof options.body!=="string"){options.headers["Content-Type"]="application/json";options.body=JSON.stringify(options.body);}if(!/^GET|HEAD$/.test(options.method||"GET")&&csrf)options.headers["X-CSRF-Token"]=csrf;var r=await fetch(url,options),data=await r.json().catch(function(){return{};});if(!r.ok)throw new Error(data.error||"Erreur serveur");return data;}
+function shell(html){app.querySelector("[data-view]")?.remove();var section=document.createElement("section");section.setAttribute("data-view",active);section.innerHTML=html;app.appendChild(section);}
+async function dashboard(){var d=await api("/api/admin/dashboard"),max=Math.max.apply(null,d.counts.map(function(x){return x.count;}).concat([1]));shell('<div class="stats"><div><strong>'+d.contacts+'</strong><span>contacts</span></div><div><strong>'+eur(d.money.revenue)+'</strong><span>CA dossiers</span></div><div><strong>'+eur(d.money.deposits)+'</strong><span>acomptes</span></div><div><strong>'+d.conversion+' %</strong><span>conversion</span></div></div><div class="panel"><h2>Pipeline dynamique</h2><div class="pipeline-chart">'+d.counts.map(function(x){return'<div><span>'+esc(x.status)+' · '+x.count+'</span><i style="width:'+Math.round(x.count/max*100)+'%"></i></div>';}).join("")+'</div><p><a class="btn btn-ghost" href="/api/admin/export.csv">Exporter CSV</a> <a class="btn btn-ghost" href="/api/admin/calendar.ics">Exporter calendrier</a> <button class="btn btn-night" id="backup">Créer une sauvegarde</button></p></div>');document.getElementById("backup").onclick=async function(){var x=await api("/api/admin/backup",{method:"POST"});note("Sauvegarde créée : "+x.file);};}
+async function bookings(){var d=await api("/api/admin/bookings");shell('<h2>Dossiers et pipeline</h2><div class="admin-cards">'+d.bookings.map(function(b){var c=b.customer||{};return'<article class="panel"><p class="sur">'+esc(b.ref)+' · '+esc(b.type)+'</p><h3>'+esc(c.prenom)+' '+esc(c.nom)+'</h3><p>'+esc(c.tel)+' · '+esc(c.email)+'<br>'+esc(c.ville)+' · '+esc(b.slot||"À planifier")+'</p><div class="grid-2"><div><label>Statut</label><select data-status="'+b.id+'">'+["Demande reçue","Devis envoyé","Accepté","Acompte à régler","Confirmé","Planifié","Terminé","Annulé"].map(function(s){return'<option'+(s===b.status?' selected':'')+'>'+s+'</option>';}).join("")+'</select></div><div><label>Montant devis (€)</label><input type="number" min="0" step=".01" data-quote="'+b.id+'" value="'+(b.quote_amount==null?"":b.quote_amount)+'"></div></div><label>Créneau</label><input data-slot="'+b.id+'" value="'+esc(b.slot||"")+'" placeholder="AAAA-MM-JJ HH:MM"><label>Notes internes</label><textarea data-notes="'+b.id+'">'+esc(b.notes||"")+'</textarea><button class="btn btn-ocean" data-save="'+b.id+'">Enregistrer</button></article>';}).join("")+'</div>');document.querySelectorAll("[data-save]").forEach(function(btn){btn.onclick=async function(){var id=btn.dataset.save;await api("/api/admin/bookings/"+id,{method:"PATCH",body:{status:document.querySelector('[data-status="'+id+'"]').value,quoteAmount:document.querySelector('[data-quote="'+id+'"]').value,slot:document.querySelector('[data-slot="'+id+'"]').value,notes:document.querySelector('[data-notes="'+id+'"]').value}});note("Dossier enregistré.");};});}
+async function contacts(){var d=await api("/api/admin/contacts");shell('<h2>Contacts</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>Contact</th><th>Besoin</th><th>Message</th></tr></thead><tbody>'+d.contacts.map(function(c){return'<tr><td>'+new Date(c.created_at).toLocaleDateString("fr-FR")+'</td><td>'+esc(c.name)+'<br>'+esc(c.email)+'<br>'+esc(c.phone)+'</td><td>'+esc(c.need)+'</td><td>'+esc(c.message)+'</td></tr>';}).join("")+'</tbody></table></div>');}
+async function tasks(){var d=await api("/api/admin/tasks");shell('<h2>Planning et tâches</h2><form id="task-form" class="panel grid-2"><div><label>Tâche</label><input id="task-title" required></div><div><label>Échéance</label><input id="task-due" type="datetime-local"></div><button class="btn btn-ocean">Ajouter</button></form><div class="table-wrap"><table><tbody>'+d.tasks.map(function(t){return'<tr><td>'+esc(t.title)+'</td><td>'+esc(t.status)+'</td><td>'+esc(t.due_at||"Sans échéance")+'</td></tr>';}).join("")+'</tbody></table></div>');document.getElementById("task-form").onsubmit=async function(e){e.preventDefault();await api("/api/admin/tasks",{method:"POST",body:{title:document.getElementById("task-title").value,dueAt:document.getElementById("task-due").value}});tasks();};}
+async function conversations(){var d=await api("/api/admin/conversations");shell('<h2>Conversations omnicanales</h2><form id="conv-form" class="panel"><label>Canal</label><select id="conv-channel"><option>email</option><option>whatsapp</option><option>sms</option><option>instagram</option></select><label>Message à mettre en file</label><textarea id="conv-body" required></textarea><button class="btn btn-ocean">Ajouter à la file d’envoi</button></form><div class="table-wrap"><table><tbody>'+d.conversations.map(function(c){return'<tr><td>'+esc(c.channel)+'</td><td>'+esc(c.direction)+'</td><td>'+esc(c.body)+'</td><td>'+esc(c.status)+'</td></tr>';}).join("")+'</tbody></table></div>');document.getElementById("conv-form").onsubmit=async function(e){e.preventDefault();await api("/api/admin/conversations",{method:"POST",body:{channel:document.getElementById("conv-channel").value,body:document.getElementById("conv-body").value}});conversations();};}
+async function pricing(){var d=await api("/api/admin/pricing"),defs=window.CARPEO_PRICING.definitions;shell('<h2>Tarifs et « Sur devis »</h2><form id="pricing-admin"><div class="panel"><label>Acompte (€)</label><input id="deposit-admin" type="number" min="0" value="'+d.deposit+'"></div><div class="table-wrap"><table><thead><tr><th>Prestation</th><th>Affichage</th><th>Prix</th></tr></thead><tbody>'+Object.keys(d.items).map(function(k){var v=d.items[k];return'<tr><td>'+esc(v.label||(defs[k]&&defs[k].label)||k)+'</td><td><select data-mode="'+k+'"><option value="price"'+(v.mode==='price'?' selected':'')+'>Prix</option><option value="quote"'+(v.mode==='quote'?' selected':'')+'>Sur devis</option></select></td><td><input data-price="'+k+'" type="number" min="0" step=".01" value="'+v.price+'"></td></tr>';}).join("")+'</tbody></table></div><button class="btn btn-ocean">Enregistrer pour tout le site</button></form>');document.getElementById("pricing-admin").onsubmit=async function(e){e.preventDefault();var items={};document.querySelectorAll("[data-mode]").forEach(function(n){var k=n.dataset.mode;items[k]={mode:n.value,price:Number(document.querySelector('[data-price="'+k+'"]').value)||0};});await api("/api/admin/pricing",{method:"PUT",body:{deposit:Number(document.getElementById("deposit-admin").value)||0,items:items}});await window.CARPEO_PRICING.refresh();note("Tarifs mis à jour pour tous les visiteurs.");};}
+async function audit(){var d=await api("/api/admin/audit");shell('<h2>Journal d’audit</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Cible</th></tr></thead><tbody>'+d.audit.map(function(a){return'<tr><td>'+new Date(a.created_at).toLocaleString("fr-FR")+'</td><td>'+esc(a.email||"public")+'</td><td>'+esc(a.action)+'</td><td>'+esc(a.entity_type)+' '+esc(a.entity_id||"")+'</td></tr>';}).join("")+'</tbody></table></div>');}
+async function team(){var u=await api("/api/admin/users"),s=await api("/api/admin/settings");shell('<h2>Équipe et zone</h2><form id="user-form" class="panel"><div class="grid-2"><div><label>Nom</label><input id="user-name" required></div><div><label>E-mail</label><input id="user-email" type="email" required></div><div><label>Rôle</label><select id="user-role"><option value="team">Équipe</option><option value="readonly">Lecture seule</option><option value="admin">Administrateur</option></select></div><div><label>Mot de passe initial</label><input id="user-password" type="password" minlength="12" required></div></div><button class="btn btn-ocean">Créer l’utilisateur</button></form><div class="table-wrap"><table><tbody>'+u.users.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td>'+esc(x.email)+'</td><td>'+esc(x.role)+'</td></tr>';}).join("")+'</tbody></table></div><form id="settings-form" class="panel"><label>Zone d’intervention</label><input id="area-setting" value="'+esc(s.settings.area||"")+'"><button class="btn btn-ocean">Enregistrer</button></form>');document.getElementById("user-form").onsubmit=async function(e){e.preventDefault();await api("/api/admin/users",{method:"POST",body:{name:document.getElementById("user-name").value,email:document.getElementById("user-email").value,role:document.getElementById("user-role").value,password:document.getElementById("user-password").value}});team();};document.getElementById("settings-form").onsubmit=async function(e){e.preventDefault();await api("/api/admin/settings",{method:"PUT",body:{settings:{area:document.getElementById("area-setting").value}}});note("Zone enregistrée.");};}
+var views={dashboard:dashboard,bookings:bookings,contacts:contacts,tasks:tasks,conversations:conversations,pricing:pricing,audit:audit,team:team};async function show(name){active=name;document.querySelectorAll("[data-tab]").forEach(function(b){b.classList.toggle("is-on",b.dataset.tab===name);});try{await views[name]();}catch(e){note(e.message);}}
+async function enter(){try{var me=await api("/api/auth/me");csrf=me.csrf;login.hidden=true;app.hidden=false;document.getElementById("logout").hidden=false;app.innerHTML='<div class="admin-tabs btn-row"><button class="mini" data-tab="dashboard">Tableau de bord</button><button class="mini" data-tab="bookings">Dossiers</button><button class="mini" data-tab="contacts">Contacts</button><button class="mini" data-tab="tasks">Planning</button><button class="mini" data-tab="conversations">Messages</button><button class="mini" data-tab="pricing">Tarifs</button><button class="mini" data-tab="team">Équipe</button><button class="mini" data-tab="audit">Audit</button></div>';document.querySelectorAll("[data-tab]").forEach(function(b){b.onclick=function(){show(b.dataset.tab);};});show(active);}catch(e){login.hidden=false;app.hidden=true;}}
+document.getElementById("login-form").onsubmit=async function(e){e.preventDefault();try{var d=await api("/api/auth/login",{method:"POST",body:{email:document.getElementById("admin-email").value,password:document.getElementById("admin-password").value}});csrf=d.csrf;note("Connexion réussie.");enter();}catch(x){note(x.message);}};document.getElementById("logout").onclick=async function(){await api("/api/auth/logout",{method:"POST"});location.reload();};enter();
 })();

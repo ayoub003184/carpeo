@@ -54,7 +54,8 @@
     document.getElementById("pick-go").textContent = quote ? "Demander un devis" : "Continuer";
   }
 
-  document.addEventListener("DOMContentLoaded", function () {
+  document.addEventListener("DOMContentLoaded", async function () {
+    if (pricing && pricing.ready) await pricing.ready;
     var grid = document.getElementById("pick-grid");
     if (!grid) return;
     grid.innerHTML = catalog.map(function (entry, i) {

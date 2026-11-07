@@ -1,30 +1,6 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex,nofollow">
-<title>Gestion des tarifs — CARPEO</title>
-<meta name="description" content="Interface CARPEO pour modifier les prix, l'acompte et les prestations affichées sur devis.">
-<link rel="icon" href="assets/favicon-32.png" type="image/png">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Poppins:wght@300;500;600&amp;display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
-<a class="skip" href="#contenu">Aller au contenu</a>
-<header class="site-header" data-header><div class="wrap header-bar"><a class="brand" href="index.html" aria-label="CARPEO, accueil"><img class="brand-full" src="assets/logo-compact.webp" alt="CARPEO" width="181" height="132"><img class="brand-mark" src="assets/logo-symbol.webp" alt="" width="56" height="48"></a><nav class="nav" aria-label="Navigation administration"><a href="index.html">Voir le site</a><a href="tarifs.html">Voir les tarifs</a></nav></div></header>
-<main id="contenu">
-  <section class="section wrap">
-    <p class="sur">Back-office</p><div class="gradient-bar"></div>
-    <h1>Gestion des tarifs et des devis</h1>
-    <p class="lead">Choisissez un prix public ou « Sur devis » pour chaque prestation. Les changements apparaissent immédiatement dans le configurateur et la grille tarifaire sur ce navigateur.</p>
-    <div class="band"><h2>Portée actuelle</h2><p>Cette version enregistre les réglages dans ce navigateur. Pour partager les changements avec tous les visiteurs et sécuriser cet écran, il faudra connecter cette interface à une base de données et à une authentification administrateur.</p></div>
-    <p id="admin-status" role="status" class="note" style="min-height:1.5rem"></p>
-    <form id="pricing-admin"></form>
-  </section>
-</main>
-<footer class="site-footer"><div class="wrap"><p><a href="index.html">Retour au site CARPEO</a></p></div></footer>
-<script src="js/config.js"></script><script src="js/pricing.js"></script><script src="js/admin.js"></script>
-</body>
-</html>
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Back-office — CARPEO</title><link rel="icon" href="assets/favicon-32.png"><link rel="stylesheet" href="css/styles.css"></head>
+<body><a class="skip" href="#contenu">Aller au contenu</a><header class="site-header" data-header><div class="wrap header-bar"><a class="brand" href="index.html"><img class="brand-full" src="assets/logo-compact.webp" alt="CARPEO" width="181" height="132"><img class="brand-mark" src="assets/logo-symbol.webp" alt="" width="56" height="48"></a><nav class="nav"><a href="index.html">Voir le site</a><a href="tarifs.html">Tarifs publics</a><button type="button" class="mini" id="logout" hidden>Déconnexion</button></nav></div></header>
+<main id="contenu" class="section wrap"><p class="sur">Back-office sécurisé</p><div class="gradient-bar"></div><h1>Piloter CARPEO</h1><p id="admin-status" role="status" class="note"></p>
+<section id="login-panel" class="panel" style="max-width:520px"><h2>Connexion</h2><form id="login-form"><label for="admin-email">E-mail</label><input id="admin-email" type="email" value="admin@carpeo.local" required autocomplete="username"><label for="admin-password">Mot de passe</label><input id="admin-password" type="password" required autocomplete="current-password"><button class="btn btn-ocean" type="submit">Se connecter</button></form></section>
+<section id="admin-app" hidden><div class="admin-tabs btn-row" role="tablist"><button class="mini is-on" data-tab="dashboard">Tableau de bord</button><button class="mini" data-tab="bookings">Dossiers</button><button class="mini" data-tab="contacts">Contacts</button><button class="mini" data-tab="planning">Planning</button><button class="mini" data-tab="messages">Messages</button><button class="mini" data-tab="pricing">Tarifs</button><button class="mini" data-tab="audit">Journal</button></div><div id="admin-view" style="margin-top:1rem"></div></section>
+</main><footer class="site-footer"><div class="wrap"><p><a href="index.html">Retour au site CARPEO</a></p></div></footer><a class="ig-fab" href="https://www.instagram.com/carpeo_?rpxt=MWtnNThpeGRlbjl3YQ%3D%3D&amp;utm_source=qr" target="_blank" rel="noopener" aria-label="Suivre CARPEO sur Instagram"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a><script src="js/config.js"></script><script src="js/pricing.js"></script><script src="js/admin.js"></script></body></html>
