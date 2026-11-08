@@ -276,11 +276,12 @@
   }
 
   function getLocalAdminStore() {
-    try {
-      return JSON.parse(localStorage.getItem("carpeo-admin-store-v1") || "null") || {};
-    } catch (e) {
-      return {};
-    }
+    var s3 = {}, s1 = {};
+    try { s3 = JSON.parse(localStorage.getItem("carpeo-admin-store-v3") || "null") || {}; } catch (e) {}
+    try { s1 = JSON.parse(localStorage.getItem("carpeo-admin-store-v1") || "null") || {}; } catch (e) {}
+    var blocked = [].concat(s3.blockedSlots || [], s1.blockedSlots || []);
+    var bookings = [].concat(s3.bookings || [], s1.bookings || []);
+    return Object.assign({}, s1, s3, { blockedSlots: blocked, bookings: bookings });
   }
 
   function findLocalBlock(slotVal, blockedList) {
@@ -539,11 +540,18 @@
         balance: q ? null : money.rest
       };
     }
-    try {
-      var st = getLocalAdminStore();
-      if (Array.isArray(st.bookings)) {
+    ["carpeo-admin-store-v3", "carpeo-admin-store-v1"].forEach(function (storeKey) {
+      try {
+        var st = JSON.parse(localStorage.getItem(storeKey) || "null") || {};
+        if (!Array.isArray(st.bookings)) st.bookings = [];
+        if (!Array.isArray(st.contacts)) st.contacts = [];
+        if (!Array.isArray(st.conversations)) st.conversations = [];
+        var bId = Date.now();
+        var fullName = ((state.customer && state.customer.prenom) || "") + " " + ((state.customer && state.customer.nom) || "");
+        fullName = fullName.trim() || "Client CARPEO";
+        var custEmail = ((state.customer && state.customer.email) || "").toLowerCase();
         st.bookings.unshift({
-          id: Date.now(),
+          id: bId,
           ref: dossier.ref,
           key: dossier.key,
           type: q ? "devis" : "reservation",
@@ -560,9 +568,42 @@
           attribution: attribution,
           created_at: new Date().toISOString()
         });
-        localStorage.setItem("carpeo-admin-store-v1", JSON.stringify(st));
-      }
-    } catch (e) {}
+        if (custEmail && !st.contacts.some(function (c) { return String(c.email || "").toLowerCase() === custEmail; })) {
+          st.contacts.unshift({
+            id: bId + 1,
+            name: fullName,
+            email: custEmail,
+            phone: (state.customer && state.customer.tel) || "",
+            address: (state.customer && state.customer.adresse) || "",
+            city: (state.customer && state.customer.ville) || "",
+            postal_code: (state.customer && state.customer.cp) || "",
+            need: q ? "devis" : "reservation",
+            message: "Dossier " + dossier.ref,
+            notes: "Dossier " + dossier.ref,
+            status: "Client",
+            tags: "Particulier",
+            source: attribution.source || "Site web",
+            created_at: new Date().toISOString()
+          });
+        }
+        st.conversations.unshift({
+          id: bId + 2,
+          booking_id: bId,
+          booking_ref: dossier.ref,
+          contact_name: fullName,
+          contact_email: custEmail,
+          contact_phone: (state.customer && state.customer.tel) || "",
+          recipient: custEmail,
+          subject: (q ? "Demande de devis " : "Réservation ") + dossier.ref,
+          channel: "form",
+          direction: "inbound",
+          body: (q ? "Nouvelle demande de devis (" : "Nouvelle réservation (") + dossier.ref + ") par " + fullName + (state.slot ? " — Créneau : " + state.slot : ""),
+          status: "reçu",
+          created_at: new Date().toISOString()
+        });
+        localStorage.setItem(storeKey, JSON.stringify(st));
+      } catch (e) {}
+    });
     if (window.carpeoTrack) {
       window.carpeoTrack(q ? "Lead" : "Booking", q ? { kind: "devis" } : { value: dossier.deposit, currency: "EUR" });
     }

@@ -75,10 +75,45 @@
 
   // Embedded fallback store when running without Node/Supabase backend
   var LOCAL_STORE_KEY = "carpeo-admin-store-v3";
+  function mergeStoreV1Into(store) {
+    try {
+      var v1 = JSON.parse(localStorage.getItem("carpeo-admin-store-v1") || "null");
+      if (!v1) return store;
+      if (Array.isArray(v1.conversations)) {
+        v1.conversations.forEach(function (cv) {
+          if (!store.conversations.some(function (x) { return String(x.id) === String(cv.id) || (x.body === cv.body && x.recipient === cv.recipient && x.channel === cv.channel); })) {
+            store.conversations.unshift(cv);
+          }
+        });
+      }
+      if (Array.isArray(v1.contacts)) {
+        v1.contacts.forEach(function (ct) {
+          if (!store.contacts.some(function (x) { return String(x.email || "").toLowerCase() === String(ct.email || "").toLowerCase(); })) {
+            store.contacts.unshift(ct);
+          }
+        });
+      }
+      if (Array.isArray(v1.bookings)) {
+        v1.bookings.forEach(function (bk) {
+          if (!store.bookings.some(function (x) { return x.ref === bk.ref; })) {
+            store.bookings.unshift(bk);
+          }
+        });
+      }
+      if (Array.isArray(v1.blockedSlots)) {
+        v1.blockedSlots.forEach(function (bl) {
+          if (!store.blockedSlots.some(function (x) { return x.slot_start === bl.slot_start && x.slot_end === bl.slot_end; })) {
+            store.blockedSlots.unshift(bl);
+          }
+        });
+      }
+    } catch (e) {}
+    return store;
+  }
   function getLocalStore() {
     try {
       var raw = localStorage.getItem(LOCAL_STORE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) return mergeStoreV1Into(JSON.parse(raw));
     } catch (e) {}
     var tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     var day2 = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
@@ -179,7 +214,11 @@
     return store;
   }
   function saveLocalStore(store) {
-    try { localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(store)); } catch (e) {}
+    try {
+      var str = JSON.stringify(store);
+      localStorage.setItem(LOCAL_STORE_KEY, str);
+      localStorage.setItem("carpeo-admin-store-v1", str);
+    } catch (e) {}
   }
 
   function localApi(url, options) {
@@ -475,6 +514,73 @@
     return { ok: true };
   }
 
+  function mergeWithLocal(url, method, origBody, data) {
+    var path = url.split("?")[0];
+    var m = (method || "GET").toUpperCase();
+    if (m !== "GET" && path.indexOf("/api/admin/") === 0 && path !== "/api/admin/seed") {
+      try { localApi(url, { method: m, body: origBody }); } catch (e) {}
+      return data;
+    }
+    var st = getLocalStore();
+    if (path === "/api/admin/conversations" && data && Array.isArray(data.conversations)) {
+      var convs = data.conversations.slice();
+      (st.conversations || []).forEach(function (lc) {
+        var exists = convs.some(function (sc) {
+          return String(sc.id) === String(lc.id) || (sc.body === lc.body && (sc.recipient === lc.recipient || sc.contact_email === lc.contact_email) && sc.channel === lc.channel);
+        });
+        if (!exists) convs.unshift(lc);
+      });
+      data.conversations = convs;
+    } else if (path === "/api/admin/contacts" && data && Array.isArray(data.contacts)) {
+      var contacts = data.contacts.slice();
+      var localConvs = st.conversations || [];
+      var localBks = st.bookings || [];
+      (st.contacts || []).forEach(function (lc) {
+        var email = String(lc.email || "").toLowerCase();
+        var existing = contacts.find(function (sc) { return String(sc.email || "").toLowerCase() === email; });
+        var cb = localBks.filter(function (b) { return String((b.customer && b.customer.email) || "").toLowerCase() === email; });
+        var cm = localConvs.filter(function (m) { return String(m.contact_email || m.recipient || "").toLowerCase() === email || String(m.contact_id) === String(lc.id); });
+        if (!existing) {
+          var spent = cb.reduce(function (s, b) { return s + Number(b.total || b.quote_amount || 0); }, 0);
+          var tl = [{ type: "contact", date: lc.created_at, label: "Contact initial (" + (lc.need || "Formulaire") + ")", detail: lc.message || lc.notes || "" }]
+            .concat(cb.map(function (b) { return { type: "booking", date: b.created_at, label: "Dossier " + b.ref + " (" + b.status + ")", detail: b.type }; }))
+            .concat(cm.map(function (m) { return { type: "message", date: m.created_at, label: String(m.channel || "form").toUpperCase() + " (" + (m.direction === "inbound" ? "Reçu" : "Envoyé") + ")", detail: m.body }; }));
+          contacts.unshift(Object.assign({}, lc, {
+            bookingsCount: cb.length,
+            totalSpent: spent,
+            averageBasket: cb.length ? Math.round(spent / cb.length) : 0,
+            hasPendingQuote: cb.some(function (b) { return b.status === "Demande reçue" || b.status === "Devis envoyé"; }),
+            bookings: cb,
+            timeline: tl
+          }));
+        } else {
+          existing.timeline = existing.timeline || [];
+          cm.forEach(function (m) {
+            if (!existing.timeline.some(function (t) { return t.detail === m.body; })) {
+              existing.timeline.unshift({ type: "message", date: m.created_at, label: String(m.channel || "form").toUpperCase() + " (" + (m.direction === "inbound" ? "Reçu" : "Envoyé") + ")", detail: m.body });
+            }
+          });
+        }
+      });
+      data.contacts = contacts;
+    } else if (path === "/api/admin/bookings" && data && Array.isArray(data.bookings)) {
+      var bks = data.bookings.slice();
+      (st.bookings || []).forEach(function (lb) {
+        if (!bks.some(function (sb) { return sb.ref === lb.ref; })) {
+          bks.unshift(lb);
+        }
+      });
+      data.bookings = bks;
+    } else if (path === "/api/admin/dashboard" && data) {
+      var localUnread = (st.conversations || []).filter(function (c) { return c.direction === "inbound" && c.status === "reçu"; }).length;
+      if (data.alerts) {
+        data.alerts.unreadMessages = Math.max(Number(data.alerts.unreadMessages || 0), localUnread);
+      }
+      data.contacts = Math.max(Number(data.contacts || 0), (st.contacts || []).length);
+    }
+    return data;
+  }
+
   async function api(url, options) {
     options = options || {};
     var origBody = options.body;
@@ -492,7 +598,7 @@
         return localApi(url, { method: options.method, body: origBody });
       }
       if (!r.ok) throw new Error(data.error || "Erreur serveur (" + r.status + ")");
-      return data;
+      return mergeWithLocal(url, options.method, origBody, data);
     } catch (err) {
       if (err && err.message && !/fetch|network|Erreur serveur|Supabase/i.test(err.message)) {
         throw err;
@@ -1982,7 +2088,7 @@
         if (document.getElementById("set-area")) curPricing.area = document.getElementById("set-area").value;
         if (document.getElementById("set-hours")) curPricing.hours = document.getElementById("set-hours").value;
         localStorage.setItem("carpeo-pricing-v2", JSON.stringify(curPricing));
-        var st = localStore();
+        var st = getLocalStore();
         st.pricing = { deposit: newDeposit, items: items, area: curPricing.area, hours: curPricing.hours, updatedAt: nowTs };
         saveLocalStore(st);
       } catch (err) {}
@@ -2012,7 +2118,7 @@
         curPricing.hours = newSettings.hours;
         curPricing.updatedAt = nowTs;
         localStorage.setItem("carpeo-pricing-v2", JSON.stringify(curPricing));
-        var st = localStore();
+        var st = getLocalStore();
         st.settings = Object.assign({}, st.settings || {}, newSettings, { updatedAt: nowTs });
         if (st.pricing) {
           st.pricing.area = newSettings.area;
@@ -2168,6 +2274,12 @@
       }
     };
   }
+
+  window.addEventListener("storage", function (ev) {
+    if ((ev.key === LOCAL_STORE_KEY || ev.key === "carpeo-admin-store-v1") && !app.hidden) {
+      showTab(activeTab);
+    }
+  });
 
   enter();
 })();

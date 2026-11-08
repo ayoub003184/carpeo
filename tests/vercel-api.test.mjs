@@ -69,4 +69,26 @@ test("Vercel API works end-to-end with fallback store, slots, vacation blocking,
   assert.equal(pubPricing.data.items.sofa2Straight.price, 95);
   assert.equal(pubPricing.data.hours, "Lundi au samedi, 8 h à 20 h");
   assert.ok(pubPricing.data.updatedAt > 0);
+
+  // Send a client message from website contact form and verify it appears in Admin Inbox & CRM
+  const contactRes = await callApi("/api/contact", "POST", {
+    name: "Nadia Mansouri",
+    email: "nadia.mansouri@example.fr",
+    phone: "06 99 88 77 66",
+    need: "Canapé",
+    message: "Bonjour, pouvez-vous intervenir samedi matin pour un canapé d'angle blanc ?"
+  });
+  assert.equal(contactRes.status, 201);
+
+  const adminConvs = await callApi("/api/admin/conversations", "GET", null, authHeaders);
+  assert.equal(adminConvs.status, 200);
+  const foundMsg = adminConvs.data.conversations.find((c) => c.contact_email === "nadia.mansouri@example.fr");
+  assert.ok(foundMsg);
+  assert.equal(foundMsg.contact_name, "Nadia Mansouri");
+  assert.equal(foundMsg.channel, "form");
+  assert.equal(foundMsg.direction, "inbound");
+
+  const adminContacts = await callApi("/api/admin/contacts", "GET", null, authHeaders);
+  assert.equal(adminContacts.status, 200);
+  assert.ok(adminContacts.data.contacts.some((c) => c.email === "nadia.mansouri@example.fr"));
 });

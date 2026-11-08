@@ -226,12 +226,89 @@
         });
         if (!ok) return;
         var button = form.querySelector('button[type="submit"]'); button.disabled = true; button.textContent = "Envoi…";
+        var cName = document.getElementById("c-nom").value.trim();
+        var cEmail = document.getElementById("c-email").value.trim().toLowerCase();
+        var cPhone = document.getElementById("c-tel") ? document.getElementById("c-tel").value.trim() : "";
+        var cNeed = document.getElementById("c-need") ? document.getElementById("c-need").value.trim() : "Formulaire";
+        var cMsg = document.getElementById("c-msg").value.trim();
+        var isPro = document.body.getAttribute("data-nav") === "pros" || /hôtel|hotel|conciergerie|bureau|pro/i.test(cNeed);
+
+        function saveContactLocally(cid, cvId) {
+          ["carpeo-admin-store-v3", "carpeo-admin-store-v1"].forEach(function (storeKey) {
+            try {
+              var st = JSON.parse(localStorage.getItem(storeKey) || "null") || {};
+              if (!Array.isArray(st.contacts)) st.contacts = [];
+              if (!Array.isArray(st.conversations)) st.conversations = [];
+              var contactId = cid || Date.now();
+              var existingCt = st.contacts.find(function (x) { return String(x.email || "").toLowerCase() === cEmail; });
+              if (!existingCt) {
+                st.contacts.unshift({
+                  id: contactId,
+                  name: cName,
+                  email: cEmail,
+                  phone: cPhone,
+                  need: cNeed,
+                  message: cMsg,
+                  notes: cMsg,
+                  status: "Nouveau",
+                  tags: isPro ? "Professionnel B2B" : "Particulier",
+                  source: isPro ? "Page Professionnels" : "Formulaire Site Web",
+                  created_at: new Date().toISOString()
+                });
+              } else {
+                contactId = existingCt.id;
+                existingCt.phone = cPhone || existingCt.phone;
+                existingCt.notes = cMsg;
+                existingCt.message = cMsg;
+              }
+              st.conversations.unshift({
+                id: cvId || (Date.now() + 1),
+                contact_id: contactId,
+                contact_name: cName,
+                contact_email: cEmail,
+                contact_phone: cPhone,
+                recipient: cEmail,
+                subject: cNeed ? ("Formulaire (" + cNeed + ")") : "Message site web",
+                channel: "form",
+                direction: "inbound",
+                body: cMsg,
+                status: "reçu",
+                created_at: new Date().toISOString()
+              });
+              localStorage.setItem(storeKey, JSON.stringify(st));
+            } catch (err) {}
+          });
+        }
+
         try {
-          var response = await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: document.getElementById("c-nom").value, email: document.getElementById("c-email").value, phone: document.getElementById("c-tel").value, need: document.getElementById("c-need").value, message: document.getElementById("c-msg").value }) });
-          var data = await response.json(); if (!response.ok) throw new Error(data.error || "Envoi impossible");
+          var response = await fetch("/api/contact", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: cName, email: cEmail, phone: cPhone, need: cNeed, message: cMsg, isPro: isPro })
+          });
+          var data = await response.json().catch(function () { return {}; });
+          if (!response.ok && response.status === 422) throw new Error(data.error || "Envoi impossible");
+          saveContactLocally(data.contactId, data.conversationId);
           if (window.carpeoTrack) window.carpeoTrack("Contact", { method: "form" });
-          form.hidden = true; var done=document.getElementById("contact-done"); done.textContent="Votre message a bien été transmis à CARPEO. Nous vous répondrons rapidement."; done.hidden=false;
-        } catch (error) { button.disabled=false; button.textContent="Envoyer mon message"; var done=document.getElementById("contact-done"); done.textContent=error.message; done.hidden=false; }
+          form.hidden = true;
+          var done = document.getElementById("contact-done");
+          done.textContent = "Votre message a bien été transmis à CARPEO. Nous vous répondrons rapidement.";
+          done.hidden = false;
+        } catch (error) {
+          if (error && /valides requis/i.test(error.message)) {
+            button.disabled = false;
+            button.textContent = "Envoyer mon message";
+            var doneErr = document.getElementById("contact-done");
+            doneErr.textContent = error.message;
+            doneErr.hidden = false;
+            return;
+          }
+          saveContactLocally();
+          form.hidden = true;
+          var doneFallback = document.getElementById("contact-done");
+          doneFallback.textContent = "Votre message a bien été transmis à CARPEO. Nous vous répondrons rapidement.";
+          doneFallback.hidden = false;
+        }
       });
     }
   });

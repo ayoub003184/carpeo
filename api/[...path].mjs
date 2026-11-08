@@ -449,11 +449,26 @@ export default async function handler(req, res) {
     }
 
     if (method === "POST" && path === "/api/contact") {
-      const b = await body(req), name = clean(b.name, 160), email = clean(b.email, 200).toLowerCase(), message = clean(b.message, 4000);
+      const b = await body(req), name = clean(b.name, 160), email = clean(b.email, 200).toLowerCase(), phone = clean(b.phone, 60), need = clean(b.need, 120), message = clean(b.message, 4000);
       if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !message) return json(res, 422, { error: "Nom, e-mail et message valides requis" });
-      const rows = await rest("contacts", "", { method: "POST", body: JSON.stringify({ name, email, phone: clean(b.phone, 60), need: clean(b.need, 120), message, status: "Nouveau" }) });
-      await safeRest("conversations", "", { method: "POST", body: JSON.stringify({ contact_id: rows[0].id, channel: "form", direction: "inbound", body: message, status: "reçu" }) });
-      return json(res, 201, { ok: true });
+      const isPro = Boolean(b.isPro) || /hôtel|hotel|conciergerie|bureau|pro/i.test(need);
+      const rows = await rest("contacts", "", { method: "POST", body: JSON.stringify({ name, email, phone, need, message, status: "Nouveau", tags: isPro ? "Professionnel B2B" : "Particulier", source: isPro ? "Page Professionnels" : "Formulaire Site Web" }) });
+      const convRows = await safeRest("conversations", "", {
+        method: "POST",
+        body: JSON.stringify({
+          contact_id: rows[0]?.id || null,
+          contact_name: name,
+          contact_email: email,
+          contact_phone: phone,
+          recipient: email,
+          subject: need ? `Formulaire (${need})` : "Message site web",
+          channel: "form",
+          direction: "inbound",
+          body: message,
+          status: "reçu"
+        })
+      });
+      return json(res, 201, { ok: true, contactId: rows[0]?.id, conversationId: convRows[0]?.id });
     }
 
     if (method === "POST" && path === "/api/bookings") {
@@ -491,6 +506,30 @@ export default async function handler(req, res) {
         })
       });
       await uploadPhotos(ref, b.photos);
+      const fullName = `${clean(c.prenom, 80)} ${clean(c.nom, 80)}`.trim();
+      const ctRows = await safeRest("contacts", "", {
+        method: "POST",
+        body: JSON.stringify({
+          name: fullName, email, phone: clean(c.tel, 60), address: clean(c.adresse, 200), city: clean(c.ville, 100), postal_code: clean(c.cp, 20),
+          need: calc.type, message: `Dossier ${ref}`, status: "Client", tags: "Particulier", source: clean(c.heard, 80) || "Site web"
+        })
+      });
+      await safeRest("conversations", "", {
+        method: "POST",
+        body: JSON.stringify({
+          booking_id: rows[0]?.id || null,
+          contact_id: ctRows[0]?.id || null,
+          contact_name: fullName,
+          contact_email: email,
+          contact_phone: clean(c.tel, 60),
+          recipient: email,
+          subject: `${calc.type === "devis" ? "Demande de devis" : "Réservation"} ${ref}`,
+          channel: "form",
+          direction: "inbound",
+          body: `${calc.type === "devis" ? "Nouvelle demande de devis" : "Nouvelle réservation"} (${ref}) par ${fullName} (${clean(c.ville, 100)})${b.slot ? " — Créneau : " + clean(b.slot, 30) : ""}.`,
+          status: "reçu"
+        })
+      });
       await audit(null, "booking.created", "booking", rows[0].id, { ref });
       return json(res, 201, { ref, key, ...calc, status });
     }
@@ -836,10 +875,10 @@ export default async function handler(req, res) {
             const cust = bk?.customer_json || {};
             return {
               ...m,
-              booking_ref: bk?.ref || null,
-              contact_name: ct?.name || `${cust.prenom || ""} ${cust.nom || ""}`.trim() || null,
-              contact_email: ct?.email || cust.email || null,
-              contact_phone: ct?.phone || cust.tel || null,
+              booking_ref: bk?.ref || m.booking_ref || null,
+              contact_name: m.contact_name || ct?.name || `${cust.prenom || ""} ${cust.nom || ""}`.trim() || null,
+              contact_email: m.contact_email || ct?.email || cust.email || null,
+              contact_phone: m.contact_phone || ct?.phone || cust.tel || null,
               recipient: m.recipient || ct?.email || cust.email || ct?.phone || cust.tel || ""
             };
           })
@@ -854,7 +893,7 @@ export default async function handler(req, res) {
           const match = bkRows.find((r) => r.ref === b.recipient || r.customer_json?.email === b.recipient || r.customer_json?.tel === b.recipient);
           if (match) bookingId = match.id;
         }
-        const rows = await rest("conversations", "", { method: "POST", body: JSON.stringify({ booking_id: bookingId, contact_id: b.contactId || null, channel: clean(b.channel, 40), direction, body: clean(b.body, 4000), status: direction === "inbound" ? "reçu" : "queued" }) });
+        const rows = await rest("conversations", "", { method: "POST", body: JSON.stringify({ booking_id: bookingId, contact_id: b.contactId || null, recipient: clean(b.recipient, 200), subject: clean(b.subject, 200), channel: clean(b.channel, 40), direction, body: clean(b.body, 4000), status: direction === "inbound" ? "reçu" : "sent" }) });
         return json(res, 201, { id: rows[0]?.id });
       }
       const editConv = /^\/api\/admin\/conversations\/(\d+)$/.exec(path);
