@@ -8,7 +8,7 @@ window.CARPEO = {
   mapsEmbedUrl: "https://www.google.com/maps?q=48.8350076,2.4096267+(Carpeo)&ll=48.8350076,2.4096267&z=11&hl=fr&output=embed",
   siteLabel: "www.carpeo.fr",
   siteUrl: "https://www.carpeo.fr",
-  area: "Intervention à domicile et en entreprise",
+  area: "Intervention à domicile",
   hours: "7 jours sur 7, de 9 h à 19 h",
   gtmId: "GTM-XXXXXXX",
   ga4Id: "G-XXXXXXXX",

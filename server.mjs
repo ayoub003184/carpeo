@@ -143,7 +143,7 @@ for (const [key, values] of Object.entries(PRICES)) insertPrice.run(key, ...valu
 
 const DEFAULT_SETTINGS = {
   deposit: "20",
-  area: "Intervention à domicile et en entreprise",
+  area: "Intervention à domicile",
   hours: "7 jours sur 7, de 9 h à 19 h",
   maps_url: "https://www.google.com/maps/place/Carpeo/@48.8350077,2.4096267,11z/data=!3m1!4b1!4m6!3m5!1s0x42afe645686fa375:0xe9c68ae617bca720!8m2!3d48.8350076!4d2.4096267!16s%2Fg%2F11zzsk71ns?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
   base_lat: "48.8350076",
@@ -159,10 +159,10 @@ const DEFAULT_SETTINGS = {
 };
 const insertSetting = db.prepare("INSERT OR IGNORE INTO settings(key,value,updated_at) VALUES(?,?,?)");
 for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v, now());
-// Clean up any legacy Île-de-France text in settings
+// Clean up any legacy Île-de-France or 'et en entreprise' text in settings
 const currentArea = db.prepare("SELECT value FROM settings WHERE key='area'").get()?.value || "";
-if (currentArea.includes("Île-de-France")) {
-  db.prepare("UPDATE settings SET value='Intervention à domicile et en entreprise', updated_at=? WHERE key='area'").run(now());
+if (currentArea.includes("Île-de-France") || currentArea.includes("et en entreprise")) {
+  db.prepare("UPDATE settings SET value='Intervention à domicile', updated_at=? WHERE key='area'").run(now());
 }
 
 function passwordHash(password, salt) {
@@ -197,7 +197,7 @@ function pricingPayload() {
   const settings = Object.fromEntries(db.prepare("SELECT key,value FROM settings").all().map((x) => [x.key, x.value]));
   return {
     deposit: Number(settings.deposit || 20),
-    area: settings.area || "Intervention à domicile et en entreprise",
+    area: settings.area || "Intervention à domicile",
     hours: settings.hours || "7 jours sur 7, de 9 h à 19 h",
     items
   };

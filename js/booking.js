@@ -202,7 +202,7 @@
         field("Ascenseur", '<select id="ascenseur"><option value="non">Non</option><option value="oui">Oui</option></select>', "ascenseur") +
         field("Comment souhaitez-vous être contacté ?", '<select id="pref"><option value="whatsapp">WhatsApp</option><option value="telephone">Téléphone</option><option value="email">E-mail</option></select>', "pref") +
         field("Comment avez-vous connu CARPEO ?", '<select id="heard">' + HEARD.map(function (h) { return "<option>" + h + "</option>"; }).join("") + "</select>", "heard") +
-        '<p class="note" id="zone-note">Intervention à domicile et en entreprise.</p>' +
+        '<p class="note" id="zone-note">Intervention à domicile.</p>' +
         '<label><input type="checkbox" id="rgpd" style="width:auto"> J\'ai lu la <a href="confidentialite.html">politique de confidentialité</a>. Mes informations servent à traiter cette demande.</label>' +
         '<p class="field-error" id="coord-error" hidden>Indiquez les champs obligatoires et acceptez l\'information sur vos données.</p>' +
         "</div>";

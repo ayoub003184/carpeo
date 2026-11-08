@@ -88,7 +88,7 @@
       user: { id: 1, email: "admin@carpeo.local", name: "Administrateur CARPEO", role: "admin" },
       settings: {
         deposit: "20",
-        area: "Intervention à domicile et en entreprise",
+        area: "Intervention à domicile",
         hours: "7 jours sur 7, de 9 h à 19 h",
         maps_url: "https://www.google.com/maps/place/Carpeo/@48.8350077,2.4096267,11z/data=!3m1!4b1!4m6!3m5!1s0x42afe645686fa375:0xe9c68ae617bca720!8m2!3d48.8350076!4d2.4096267!16s%2Fg%2F11zzsk71ns?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D",
         auto_reminder_j1: "true",
@@ -1846,7 +1846,7 @@
       '<h3>Zone d’intervention, Google Maps &amp; Tracking RGPD</h3>' +
       '<form id="settings-form">' +
       '<label>Zone d’intervention affichée</label>' +
-      '<input id="set-area" value="' + esc(settings.area || "Intervention à domicile et en entreprise") + '">' +
+      '<input id="set-area" value="' + esc(settings.area || "Intervention à domicile") + '">' +
       '<label>Horaires</label>' +
       '<input id="set-hours" value="' + esc(settings.hours || "7 jours sur 7, de 9 h à 19 h") + '">' +
       '<label>Lien Google Maps CARPEO</label>' +

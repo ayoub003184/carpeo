@@ -149,7 +149,7 @@ async function pricing() {
   }
   return {
     deposit: Number(setMap.deposit || 20),
-    area: setMap.area && !setMap.area.includes("Île-de-France") ? setMap.area : "Intervention à domicile et en entreprise",
+    area: setMap.area && !setMap.area.includes("Île-de-France") && !setMap.area.includes("et en entreprise") ? setMap.area : "Intervention à domicile",
     hours: setMap.hours || "7 jours sur 7, de 9 h à 19 h",
     items
   };
