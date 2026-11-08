@@ -1507,12 +1507,12 @@
 
     renderShell(html);
 
-    // Initialize Leaflet Map with Carto / OpenStreetMap
+    // Initialize Leaflet Map with OpenStreetMap
     if (window.L && document.getElementById("route-map")) {
       var map = window.L.map("route-map").setView([48.8350076, 2.4096267], 11);
       ui.leafletMap = map;
-      window.L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
+      window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19
       }).addTo(map);
 
