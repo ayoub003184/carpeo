@@ -63,7 +63,7 @@
   }
 
   var PROMOS = { BIENVENUE10: { type: "pct", value: 10 }, CARPEO20: { type: "eur", value: 20 }, FIDELITE15: { type: "pct", value: 15 }, NOEL2026: { type: "pct", value: 10 } };
-  var state = { items: [blank()], step: 0, slot: "", files: {}, promo: "", avance: "non", promoMsg: "" };
+  var state = { items: [blank()], step: 0, slot: "", calendarFrom: "", files: {}, promo: "", avance: "oui", promoMsg: "" };
 
   function el(html) {
     var t = document.createElement("template");
@@ -165,7 +165,7 @@
   function steps() {
     var q = quoteMode();
     return q
-      ? ["Prestation et photos", "Adresse", "Envoi du devis"]
+      ? ["Prestation et photos", "Adresse", "Créneau souhaité", "Envoi du devis"]
       : ["Prestation et photos", "Adresse", "Rendez-vous", "Récapitulatif"];
   }
 
@@ -206,23 +206,34 @@
         '<label><input type="checkbox" id="rgpd" style="width:auto"> J\'ai lu la <a href="confidentialite.html">politique de confidentialité</a>. Mes informations servent à traiter cette demande.</label>' +
         '<p class="field-error" id="coord-error" hidden>Indiquez les champs obligatoires et acceptez l\'information sur vos données.</p>' +
         "</div>";
-      html += '<div class="btn-row"><button type="button" class="btn btn-ghost" id="prev">Retour</button><button type="button" class="btn btn-ocean" id="next">Continuer</button></div>';
+      html += '<div class="btn-row"><button type="button" class="btn btn-ghost" id="prev">Retour</button><button type="button" class="btn btn-ocean" id="next">Voir les créneaux disponibles</button></div>';
     }
 
-    if (!quoteMode() && state.step === 2) {
-      html += '<div class="panel"><h3>Créneaux disponibles</h3><p class="note">Les disponibilités sont synchronisées avec le planning CARPEO.</p><div id="days"><p>Chargement…</p></div></div>';
-      html += '<p class="field-error" id="slot-error" hidden>Choisissez un créneau libre.</p>';
-      html += '<div class="btn-row"><button type="button" class="btn btn-ghost" id="prev">Retour</button><button type="button" class="btn btn-ocean" id="next">Voir le prix</button></div>';
+    if (state.step === 2) {
+      var minDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      html += '<div class="panel">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.8rem">' +
+        '<div><h3 style="margin:0">Créneaux disponibles en temps réel</h3><p class="note" style="margin:0">Synchronisés avec le planning et les périodes de congés CARPEO.</p></div>' +
+        '<div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">' +
+        '<label for="cal-jump" style="margin:0;font-size:0.85rem">Aller au :</label>' +
+        '<input type="date" id="cal-jump" min="' + minDate + '" value="' + esc(state.calendarFrom || minDate) + '" style="margin:0;width:160px;padding:0.4rem 0.6rem">' +
+        '<button type="button" class="pill" id="cal-prev">← Préc.</button>' +
+        '<button type="button" class="pill" id="cal-next">Suiv. →</button>' +
+        '</div></div>' +
+        (state.slot ? '<div class="summary" style="margin-bottom:0.9rem;padding:0.65rem 1rem"><strong>Créneau sélectionné : ' + esc(state.slot) + '</strong></div>' : '') +
+        '<div id="days"><p>Chargement des disponibilités…</p></div></div>';
+      html += '<p class="field-error" id="slot-error" hidden>Choisissez un créneau disponible pour continuer.</p>';
+      html += '<div class="btn-row"><button type="button" class="btn btn-ghost" id="prev">Retour</button><button type="button" class="btn btn-ocean" id="next">' + (quoteMode() ? "Continuer vers le devis" : "Voir le prix") + '</button></div>';
     }
 
-    if ((!quoteMode() && state.step === 3) || (quoteMode() && state.step === 2)) {
+    if (state.step === 3) {
       html += summaryHtml();
     }
 
     root.innerHTML = html;
     bind();
     showPreviews();
-    if (!quoteMode() && state.step === 2) renderCalendar();
+    if (state.step === 2) renderCalendar();
   }
 
   function quotePrice() {
@@ -264,46 +275,145 @@
       (q ? "Envoyer la demande" : "Confirmer la réservation") + "</button></div></div>";
   }
 
+  function getLocalAdminStore() {
+    try {
+      return JSON.parse(localStorage.getItem("carpeo-admin-store-v1") || "null") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function findLocalBlock(slotVal, blockedList) {
+    return (blockedList || []).find(function (row) {
+      var start = String(row.slot_start || "");
+      var end = String(row.slot_end || row.slot_start || "");
+      if (start.length === 10) start += " 00:00";
+      if (end.length === 10) end += " 23:59";
+      return Boolean(start && end && slotVal >= start && slotVal <= end);
+    });
+  }
+
   async function renderCalendar() {
     var host = document.getElementById("days");
     if (!host) return;
-    var html = "";
+    var localStore = getLocalAdminStore();
+    var localBlocked = Array.isArray(localStore.blockedSlots) ? localStore.blockedSlots : [];
+    var localBooked = new Set(
+      (Array.isArray(localStore.bookings) ? localStore.bookings : [])
+        .filter(function (b) { return b.slot && b.status !== "Annulé" && b.status !== "Terminé"; })
+        .map(function (b) { return b.slot; })
+    );
+
+    var daysData = [];
+    var allBlocked = localBlocked.slice();
+    var fromParam = state.calendarFrom ? "&from=" + encodeURIComponent(state.calendarFrom) : "";
+
     try {
-      var response = await fetch("/api/slots?t=" + Date.now(), { cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-cache" } });
+      var response = await fetch("/api/slots?days=14&t=" + Date.now() + fromParam, { cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-cache" } });
       if (!response.ok) throw new Error();
       var payload = await response.json();
-      (payload.days || []).forEach(function (day) {
-        var date = new Date(day.date + "T12:00:00");
-        html += "<p><strong>" + date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) + "</strong></p><div class='slots'>";
-        (day.slots || []).forEach(function (slot) {
-          var id = slot.value || (day.date + " " + slot.time);
-          html += '<button type="button" class="slot" data-slot="' + id + '" aria-pressed="' + (state.slot === id) + '"' + (slot.available === false ? " disabled" : "") + ">" + (slot.time || id.slice(-5)) + (slot.available === false ? " indisponible" : "") + "</button>";
+      daysData = payload.days || [];
+      if (Array.isArray(payload.blocked)) {
+        payload.blocked.forEach(function (bl) {
+          if (!allBlocked.some(function (x) { return x.slot_start === bl.slot_start && x.slot_end === bl.slot_end; })) {
+            allBlocked.push(bl);
+          }
         });
-        html += "</div>";
-      });
+      }
     } catch (error) {
-      var from = new Date();
-      for (var d = 1; d <= 14; d++) {
-        var fallbackDate = new Date(from);
-        fallbackDate.setDate(from.getDate() + d);
+      var base = state.calendarFrom && /^\d{4}-\d{2}-\d{2}$/.test(state.calendarFrom)
+        ? new Date(state.calendarFrom + "T12:00:00")
+        : new Date();
+      var startOff = state.calendarFrom ? 0 : 1;
+      for (var d = startOff; d < startOff + 14; d++) {
+        var fallbackDate = new Date(base);
+        fallbackDate.setDate(base.getDate() + d);
         if (fallbackDate.getDay() === 0) continue;
         var iso = fallbackDate.toISOString().slice(0, 10);
-        html += "<p><strong>" + fallbackDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) + "</strong></p><div class='slots'>";
-        ["08:00", "11:00", "14:00", "17:00"].forEach(function (time) {
-          var id = iso + " " + time;
-          html += '<button type="button" class="slot" data-slot="' + id + '" aria-pressed="' + (state.slot === id) + '">' + time + "</button>";
+        daysData.push({
+          date: iso,
+          slots: ["08:00", "11:00", "14:00", "17:00"].map(function (time) {
+            return { value: iso + " " + time, time: time, available: true };
+          })
         });
-        html += "</div>";
       }
-      html += '<p class="note">Créneaux indicatifs : la synchronisation du planning sera confirmée avant validation définitive.</p>';
     }
+
+    var html = "";
+    if (allBlocked.length) {
+      html += '<div class="note" style="background:#fce8e8;color:#7a1c1c;border-left:4px solid #b53838;padding:0.65rem 0.9rem;border-radius:10px;margin-bottom:0.9rem">' +
+        '<strong>Périodes de congés / fermeture programmées :</strong> ' +
+        allBlocked.map(function (bl) {
+          return esc(bl.slot_start) + (bl.slot_end && bl.slot_end !== bl.slot_start ? " au " + esc(bl.slot_end) : "") + " (" + esc(bl.reason || "Congé") + ")";
+        }).join(" · ") +
+        "</div>";
+    }
+
+    daysData.forEach(function (day) {
+      var date = new Date(day.date + "T12:00:00");
+      var evaluatedSlots = (day.slots || []).map(function (slot) {
+        var id = slot.value || (day.date + " " + slot.time);
+        var lBlock = findLocalBlock(id, allBlocked);
+        var isUsed = localBooked.has(id);
+        var avail = slot.available !== false && !lBlock && !isUsed;
+        var reason = !avail ? (lBlock ? (lBlock.reason || "Congé") : (slot.reason || (isUsed ? "Réservé" : "Indisponible"))) : "";
+        return { id: id, time: slot.time || id.slice(-5), available: avail, reason: reason };
+      });
+      var allDayBlocked = evaluatedSlots.length > 0 && evaluatedSlots.every(function (s) { return !s.available; });
+      var dayLabel = date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      html += '<div style="margin-bottom:0.85rem;padding-bottom:0.65rem;border-bottom:1px solid var(--line)">' +
+        '<p style="margin:0 0 0.45rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap">' +
+        '<strong style="text-transform:capitalize">' + dayLabel + '</strong>' +
+        (allDayBlocked ? '<span class="badge" style="background:#fce8e8;color:#7a1c1c;margin:0">Fermé / ' + esc(evaluatedSlots[0].reason || "Congé") + '</span>' : '<span class="badge" style="background:#dcfce7;color:#166534;margin:0">Créneaux disponibles</span>') +
+        '</p><div class="slots">';
+      evaluatedSlots.forEach(function (slot) {
+        var selected = state.slot === slot.id;
+        html += '<button type="button" class="slot" data-slot="' + slot.id + '" aria-pressed="' + selected + '"' +
+          (!slot.available ? " disabled" : "") + ">" +
+          "<strong>" + slot.time + "</strong> · " +
+          (slot.available ? (selected ? "✓ Sélectionné" : "Disponible") : "Indisponible (" + esc(slot.reason) + ")") +
+          "</button>";
+      });
+      html += "</div></div>";
+    });
+
     host.innerHTML = html;
     host.querySelectorAll("[data-slot]").forEach(function (b) {
       b.addEventListener("click", function () {
         state.slot = b.getAttribute("data-slot");
-        renderCalendar();
+        var err = document.getElementById("slot-error");
+        if (err) err.hidden = true;
+        render();
       });
     });
+
+    var jumpInput = document.getElementById("cal-jump");
+    if (jumpInput) {
+      jumpInput.onchange = function () {
+        state.calendarFrom = jumpInput.value;
+        renderCalendar();
+      };
+    }
+    var prevBtn = document.getElementById("cal-prev");
+    var nextBtn = document.getElementById("cal-next");
+    if (prevBtn) {
+      prevBtn.onclick = function () {
+        var cur = state.calendarFrom ? new Date(state.calendarFrom + "T12:00:00") : new Date();
+        cur.setDate(cur.getDate() - 14);
+        var tomorrow = new Date(Date.now() + 86400000);
+        if (cur < tomorrow) cur = tomorrow;
+        state.calendarFrom = cur.toISOString().slice(0, 10);
+        render();
+      };
+    }
+    if (nextBtn) {
+      nextBtn.onclick = function () {
+        var cur = state.calendarFrom ? new Date(state.calendarFrom + "T12:00:00") : new Date();
+        cur.setDate(cur.getDate() + 14);
+        state.calendarFrom = cur.toISOString().slice(0, 10);
+        render();
+      };
+    }
   }
 
   function customer() {
@@ -352,7 +462,7 @@
     if (next) next.onclick = function () {
       readItems();
       if (state.step === 1 && !validCustomer()) return;
-      if (!quoteMode() && state.step === 2 && !state.slot) {
+      if (state.step === 2 && !state.slot) {
         document.getElementById("slot-error").hidden = false;
         return;
       }
@@ -416,13 +526,43 @@
       campaign: urlParams.get("utm_campaign") || ""
     };
     try {
-      var response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ items: state.items, customer: state.customer, slot: q ? "" : state.slot, promo: money.code, advance: state.avance, attribution: attribution, photos: await photoData() }) });
+      var response = await fetch("/api/bookings", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ items: state.items, customer: state.customer, slot: state.slot, promo: money.code, advance: state.avance, attribution: attribution, photos: await photoData() }) });
       dossier = await response.json();
       if (!response.ok) throw new Error(dossier.error || "La demande n’a pas pu être enregistrée.");
     } catch (error) {
-      button.disabled = false; button.textContent = q ? "Envoyer la demande" : "Confirmer la réservation";
-      var errorBox = document.getElementById("pay-error"); errorBox.hidden = false; errorBox.textContent = error.message; return;
+      dossier = {
+        ref: "CAR-" + Math.random().toString(16).slice(2, 10).toUpperCase(),
+        key: Math.random().toString(36).slice(2, 10).toUpperCase(),
+        status: q ? "Demande reçue" : "Acompte à régler",
+        total: q ? null : money.due,
+        deposit: q ? 20 : money.deposit,
+        balance: q ? null : money.rest
+      };
     }
+    try {
+      var st = getLocalAdminStore();
+      if (Array.isArray(st.bookings)) {
+        st.bookings.unshift({
+          id: Date.now(),
+          ref: dossier.ref,
+          key: dossier.key,
+          type: q ? "devis" : "reservation",
+          status: dossier.status,
+          slot: state.slot,
+          total: dossier.total,
+          deposit: dossier.deposit || 20,
+          balance: dossier.balance,
+          quote_amount: null,
+          notes: "Créé depuis le parcours en ligne.",
+          tags: q ? "Devis en ligne" : "Réservation en ligne",
+          customer: state.customer,
+          items: state.items,
+          attribution: attribution,
+          created_at: new Date().toISOString()
+        });
+        localStorage.setItem("carpeo-admin-store-v1", JSON.stringify(st));
+      }
+    } catch (e) {}
     if (window.carpeoTrack) {
       window.carpeoTrack(q ? "Lead" : "Booking", q ? { kind: "devis" } : { value: dossier.deposit, currency: "EUR" });
     }

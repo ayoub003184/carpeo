@@ -15,7 +15,7 @@
         var bookLink = document.createElement("a");
         bookLink.className = "nav-book";
         bookLink.href = "reserver.html";
-        bookLink.textContent = "Réserver ma prestation";
+        bookLink.textContent = "Réserver maintenant";
         nav.appendChild(bookLink);
       }
     }
@@ -153,6 +153,50 @@
       }
       tax.addEventListener("input", paintTax);
       paintTax();
+    }
+
+    var homeReviews = document.getElementById("home-reviews");
+    if (homeReviews) {
+      (async function () {
+        var list = [];
+        try {
+          var st = JSON.parse(localStorage.getItem("carpeo-admin-store-v1") || "null");
+          if (st && Array.isArray(st.reviews)) {
+            list = st.reviews.filter(function (r) { return (r.status || "Publié") === "Publié"; });
+          }
+        } catch (e) {}
+        try {
+          var r = await fetch("/api/reviews?t=" + Date.now(), { cache: "no-store" });
+          if (r.ok) {
+            var data = await r.json();
+            if (Array.isArray(data.reviews) && data.reviews.length) {
+              data.reviews.forEach(function (rv) {
+                if (!list.some(function (x) { return x.customer_name === rv.customer_name && x.comment === rv.comment; })) {
+                  list.push(rv);
+                }
+              });
+            }
+          }
+        } catch (e) {}
+        if (list.length) {
+          var escHtml = function (s) {
+            return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+              return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+            });
+          };
+          homeReviews.innerHTML = list.slice(0, 6).map(function (rv) {
+            var stars = "★".repeat(Math.min(5, Math.max(1, Number(rv.rating) || 5)));
+            return '<blockquote class="reveal is-in">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.45rem">' +
+              '<strong>' + escHtml(rv.customer_name || "Client CARPEO") + '</strong>' +
+              '<span style="color:#fbbc04;letter-spacing:0.08em">' + stars + '</span>' +
+              '</div>' +
+              '<p style="margin-bottom:0.5rem">« ' + escHtml(rv.comment || "") + ' »</p>' +
+              (rv.reply ? '<small class="note" style="display:block;border-top:1px solid var(--line);padding-top:0.4rem"><strong>Réponse CARPEO :</strong> ' + escHtml(rv.reply) + '</small>' : '') +
+              '</blockquote>';
+          }).join("");
+        }
+      })();
     }
 
     var form = document.getElementById("contact-form");

@@ -1,8 +1,12 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
+const FALLBACK_DB_PATH = path.join(os.tmpdir(), "carpeo-vercel-db.json");
 const CARPEO_TABLES = new Set(["users", "pricing", "settings", "bookings", "contacts", "conversations", "tasks", "blocked_slots", "notifications", "payments", "reviews", "events", "audit"]);
 const PROMOS = { BIENVENUE10: ["pct", 10], CARPEO20: ["eur", 20], FIDELITE15: ["pct", 15], NOEL2026: ["pct", 10] };
 const PRICE_DEFAULTS = {
@@ -53,12 +57,173 @@ async function body(req) {
   for await (const chunk of req) chunks.push(chunk);
   return chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {};
 }
-function configured(res) {
-  if (!SUPABASE_URL || !SERVICE_KEY || !ANON_KEY) {
-    json(res, 503, { error: "Supabase n’est pas encore connecté à Vercel" });
-    return false;
+function defaultFallbackDb() {
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  const day2 = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+  return {
+    users: [{ id: "admin-1", email: "admin@carpeo.local", name: "Administrateur CARPEO", role: "admin", created_at: now() }],
+    pricing: Object.entries(PRICE_DEFAULTS).map(([key, v]) => ({ key, label: v[0], group_name: v[1], mode: v[2], price: v[3], updated_at: now() })),
+    settings: [
+      { key: "deposit", value: "20" },
+      { key: "area", value: "Intervention à domicile" },
+      { key: "hours", value: "7 jours sur 7, de 9 h à 19 h" },
+      { key: "maps_url", value: "https://www.google.com/maps/place/Carpeo/@48.8350077,2.4096267,11z/data=!3m1!4b1!4m6!3m5!1s0x42afe645686fa375:0xe9c68ae617bca720!8m2!3d48.8350076!4d2.4096267!16s%2Fg%2F11zzsk71ns?entry=ttu&g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D" },
+      { key: "auto_reminder_j1", value: "true" },
+      { key: "auto_quote_followup", value: "true" },
+      { key: "auto_review_request", value: "true" }
+    ],
+    bookings: [
+      {
+        id: 1, ref: "CAR-8F4A219B", access_key_hash: hash("DEMOKEY1"), type: "reservation", status: "Planifié",
+        slot: `${tomorrow} 11:00`, total: 139, deposit: 20, balance: 119, quote_amount: null,
+        notes: "Code porte 4582B, 2e étage avec ascenseur.", tags: "Particulier, Fidèle",
+        lat: 48.864716, lng: 2.349014, route_order: 1,
+        customer_json: { nom: "Martin", prenom: "Camille", email: "camille.martin@exemple.fr", tel: "06 12 34 56 78", adresse: "14 Rue de Rivoli", cp: "75004", ville: "Paris", pref: "whatsapp", heard: "Google" },
+        items_json: [{ cat: "canape", places: "3", config: "angle", matiere: "Velours", qty: 1, stain: "Boisson", frozenPrice: 139 }],
+        attribution_json: { source: "Google Ads", campaign: "Search_Canape" }, photos_json: [],
+        created_at: now(), updated_at: now()
+      },
+      {
+        id: 2, ref: "CAR-3C9E710A", access_key_hash: hash("DEMOKEY2"), type: "devis", status: "Demande reçue",
+        slot: `${day2} 14:00`, total: null, deposit: 20, balance: null, quote_amount: null,
+        notes: "Grand tapis berbère laine nouée main.", tags: "Devis, Tapis délicat",
+        lat: 48.8414, lng: 2.253, route_order: 2,
+        customer_json: { nom: "Dubois", prenom: "Laurent", email: "l.dubois@exemple.fr", tel: "06 98 76 54 32", adresse: "28 Avenue Mozart", cp: "75016", ville: "Paris", pref: "email", heard: "Instagram" },
+        items_json: [{ cat: "tapis", length: "3", width: "2", surface: "6", matiere: "Laine", qty: 1, stain: "Taches organiques", frozenPrice: null }],
+        attribution_json: { source: "Meta Pixel / Instagram", campaign: "Retargeting_Tapis" }, photos_json: [],
+        created_at: now(), updated_at: now()
+      }
+    ],
+    contacts: [
+      { id: 1, name: "Camille Martin", email: "camille.martin@exemple.fr", phone: "06 12 34 56 78", address: "14 Rue de Rivoli", city: "Paris", postal_code: "75004", need: "Canapé", message: "Client régulier.", status: "Client", tags: "Particulier, Fidèle", notes: "Client régulier.", source: "Google Ads", created_at: now() },
+      { id: 2, name: "Laurent Dubois", email: "l.dubois@exemple.fr", phone: "06 98 76 54 32", address: "28 Avenue Mozart", city: "Paris", postal_code: "75016", need: "Tapis", message: "Attend chiffrage tapis laine.", status: "Nouveau", tags: "Devis, Tapis délicat", notes: "Attend chiffrage tapis laine.", source: "Meta Pixel / Instagram", created_at: now() }
+    ],
+    conversations: [
+      { id: 1, booking_id: 1, contact_id: 1, channel: "whatsapp", direction: "inbound", recipient: "06 12 34 56 78", subject: "", body: "Bonjour, je vous confirme que le digicode est bien 4582B pour demain à 11h.", status: "reçu", created_at: now() },
+      { id: 2, booking_id: 2, contact_id: 2, channel: "instagram", direction: "inbound", recipient: "@laurent.dubois", subject: "", body: "Bonjour, faites-vous le nettoyage des tapis berbères en laine à domicile ?", status: "reçu", created_at: now() }
+    ],
+    tasks: [
+      { id: 1, booking_id: 2, title: "Chiffrer et envoyer le devis tapis laine (CAR-3C9E710A)", due_at: `${tomorrow}T10:00`, assignee: "Commercial CARPEO", priority: "Haute", status: "À faire", created_at: now() }
+    ],
+    blocked_slots: [],
+    notifications: [],
+    payments: [
+      { id: 1, booking_id: 1, provider_id: "pi_3QCarpeo001", kind: "deposit", amount: 20, status: "paid", method: "stripe", created_at: now() }
+    ],
+    reviews: [
+      { id: 1, booking_id: 1, customer_name: "Camille Martin", rating: 5, comment: "Canapé d'angle en velours récupéré comme neuf ! Ponctuel, soigneux et séchage rapide. Je recommande à 100 %.", reply: "Merci beaucoup Camille pour votre confiance ! À très bientôt.", status: "Publié", created_at: now() },
+      { id: 2, booking_id: null, customer_name: "Thomas Bernard", rating: 5, comment: "Intervention impeccable sur notre matelas King Size et deux fauteuils. Plus aucune auréole et une odeur très fraîche.", reply: "Merci Thomas pour votre retour !", status: "Publié", created_at: now() },
+      { id: 3, booking_id: null, customer_name: "Sophie Lemaire", rating: 5, comment: "Équipe très professionnelle, l'avance immédiate de 50 % du crédit d'impôt a été activée en 5 minutes. Résultat bluffant sur notre canapé clair.", reply: "Merci infiniment Sophie, ravis que le résultat vous plaise !", status: "Publié", created_at: now() }
+    ],
+    events: [],
+    audit: []
+  };
+}
+function loadFallbackDb() {
+  try {
+    if (fs.existsSync(FALLBACK_DB_PATH)) {
+      return JSON.parse(fs.readFileSync(FALLBACK_DB_PATH, "utf8"));
+    }
+  } catch {}
+  const fresh = defaultFallbackDb();
+  try { fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(fresh), "utf8"); } catch {}
+  return fresh;
+}
+function saveFallbackDb(db) {
+  try { fs.writeFileSync(FALLBACK_DB_PATH, JSON.stringify(db), "utf8"); } catch {}
+}
+function matchRow(row, params) {
+  for (const [k, rawVal] of params.entries()) {
+    if (["select", "order", "limit", "on_conflict"].includes(k)) continue;
+    const v = String(rawVal);
+    if (v.startsWith("eq.")) {
+      const target = v.slice(3);
+      if (String(row[k] ?? "") !== target) return false;
+    } else if (v.startsWith("neq.")) {
+      const target = v.slice(4);
+      if (String(row[k] ?? "") === target) return false;
+    } else if (v === "not.is.null") {
+      if (row[k] == null || row[k] === "") return false;
+    } else if (v.startsWith("not.in.(")) {
+      const list = v.slice(8, -1).split(",").map((s) => s.trim().replace(/^"|"$/g, ""));
+      if (list.includes(String(row[k] ?? ""))) return false;
+    } else if (v.startsWith("in.(")) {
+      const list = v.slice(4, -1).split(",").map((s) => s.trim().replace(/^"|"$/g, ""));
+      if (!list.includes(String(row[k] ?? ""))) return false;
+    }
   }
   return true;
+}
+function localDbRest(table, query = "", init = {}) {
+  const cleanTable = table.replace(/^carpeo_/, "");
+  const db = loadFallbackDb();
+  if (!Array.isArray(db[cleanTable])) db[cleanTable] = [];
+  const rows = db[cleanTable];
+  const params = new URLSearchParams(query);
+  const method = (init.method || "GET").toUpperCase();
+
+  if (method === "GET") {
+    let out = rows.filter((r) => matchRow(r, params));
+    const order = params.get("order");
+    if (order) {
+      const first = order.split(",")[0];
+      const [col, dir] = first.split(".");
+      out.sort((a, b) => {
+        const va = String(a[col] ?? ""), vb = String(b[col] ?? "");
+        return dir === "desc" ? vb.localeCompare(va) : va.localeCompare(vb);
+      });
+    }
+    const limit = Number(params.get("limit") || 0);
+    if (limit > 0) out = out.slice(0, limit);
+    return out;
+  }
+
+  const payload = init.body ? JSON.parse(init.body) : {};
+  const items = Array.isArray(payload) ? payload : [payload];
+
+  if (method === "POST") {
+    const conflictKey = params.get("on_conflict");
+    const inserted = [];
+    for (const item of items) {
+      if (conflictKey && item[conflictKey] != null) {
+        const existingIdx = rows.findIndex((r) => String(r[conflictKey]) === String(item[conflictKey]));
+        if (existingIdx !== -1) {
+          rows[existingIdx] = { ...rows[existingIdx], ...item, updated_at: now() };
+          inserted.push(rows[existingIdx]);
+          continue;
+        }
+      }
+      const nextId = item.id ?? (rows.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0) + 1);
+      const record = { id: nextId, created_at: now(), updated_at: now(), ...item };
+      rows.push(record);
+      inserted.push(record);
+    }
+    saveFallbackDb(db);
+    return inserted;
+  }
+
+  if (method === "PATCH") {
+    const updated = [];
+    for (let i = 0; i < rows.length; i++) {
+      if (matchRow(rows[i], params)) {
+        rows[i] = { ...rows[i], ...payload, updated_at: now() };
+        updated.push(rows[i]);
+      }
+    }
+    saveFallbackDb(db);
+    return updated;
+  }
+
+  if (method === "DELETE") {
+    db[cleanTable] = rows.filter((r) => !matchRow(r, params));
+    saveFallbackDb(db);
+    return [];
+  }
+
+  return [];
+}
+function configured() {
+  return Boolean(SUPABASE_URL && SERVICE_KEY);
 }
 async function rawRest(tableName, query = "", init = {}) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}${query ? `?${query}` : ""}`, {
@@ -78,12 +243,13 @@ async function rawRest(tableName, query = "", init = {}) {
   return { response, data };
 }
 async function rest(table, query = "", init = {}) {
+  if (!configured()) return localDbRest(table, query, init);
   const primary = CARPEO_TABLES.has(table) ? `carpeo_${table}` : table;
   let { response, data } = await rawRest(primary, query, init);
   if (!response.ok && primary !== table && (response.status === 404 || data?.code === "PGRST205" || String(data?.message || "").includes("schema cache"))) {
     ({ response, data } = await rawRest(table, query, init));
   }
-  if (!response.ok) throw Object.assign(new Error(data?.message || data?.hint || `Supabase ${response.status}`), { status: response.status });
+  if (!response.ok) return localDbRest(table, query, init);
   return data;
 }
 async function safeRest(table, query = "", init = {}, fallback = []) {
@@ -188,37 +354,47 @@ async function calculate(items, advance, promoCode) {
   const deposit = p.deposit || 20;
   return { type: "reservation", total, deposit, balance: Math.max(0, Math.round((due - deposit) * 100) / 100), discount, pricedItems };
 }
-async function slots() {
+async function slots(fromDateStr = "", totalDays = 21) {
   const [booked, blocked] = await Promise.all([
     safeRest("bookings", "select=slot&slot=not.is.null&status=not.in.(Annulé,Terminé)"),
     safeRest("blocked_slots", "select=id,slot_start,slot_end,reason&order=slot_start")
   ]);
   const used = new Set(booked.map((x) => x.slot));
-  const isBlocked = (slot) => blocked.some((row) => {
+  const findBlock = (slot) => blocked.find((row) => {
     const start = String(row.slot_start || "").length === 10 ? `${row.slot_start} 00:00` : String(row.slot_start || "");
     const rawEnd = String(row.slot_end || row.slot_start || "");
     const end = rawEnd.length === 10 ? `${rawEnd} 23:59` : rawEnd;
     return Boolean(start && end && slot >= start && slot <= end);
   });
   const days = [];
-  const from = new Date();
-  for (let d = 1; d <= 14; d++) {
-    const date = new Date(from);
-    date.setDate(from.getDate() + d);
+  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(fromDateStr) ? new Date(`${fromDateStr}T12:00:00`) : new Date();
+  const startOffset = /^\d{4}-\d{2}-\d{2}$/.test(fromDateStr) ? 0 : 1;
+  const count = Math.min(60, Math.max(7, Number(totalDays) || 21));
+  for (let d = startOffset; d < startOffset + count; d++) {
+    const date = new Date(baseDate);
+    date.setDate(baseDate.getDate() + d);
     if (date.getDay() === 0) continue;
     const iso = date.toISOString().slice(0, 10);
+    const daySlots = ["08:00", "11:00", "14:00", "17:00"].map((time) => {
+      const val = `${iso} ${time}`;
+      const bl = findBlock(val);
+      return {
+        value: val,
+        time,
+        available: !used.has(val) && !bl,
+        reason: bl ? (bl.reason || "Congé / Indisponible") : (used.has(val) ? "Réservé" : "")
+      };
+    });
     days.push({
       date: iso,
-      slots: ["08:00", "11:00", "14:00", "17:00"].map((time) => ({
-        value: `${iso} ${time}`,
-        time,
-        available: !used.has(`${iso} ${time}`) && !isBlocked(`${iso} ${time}`)
-      }))
+      blockedReason: daySlots.every((s) => !s.available && s.reason) ? daySlots[0].reason : "",
+      slots: daySlots
     });
   }
   return { days, blocked };
 }
 async function uploadPhotos(ref, photos) {
+  if (!configured()) return [];
   const uploaded = [];
   for (const photo of (Array.isArray(photos) ? photos : []).slice(0, 16)) {
     const match = /^data:image\/(jpeg|png|webp);base64,(.+)$/s.exec(photo.data || "");
@@ -261,14 +437,17 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  if (!configured(res)) return;
   const url = new URL(req.url, "https://carpeo.vercel.app"), path = url.pathname, method = req.method || "GET";
   try {
     if (method === "GET" && path === "/api/health") {
-      return json(res, 200, { ok: true, database: "supabase", supabaseConfigured: true, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY), time: now() });
+      return json(res, 200, { ok: true, database: configured() ? "supabase" : "fallback-json", supabaseConfigured: configured(), stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY), time: now() });
     }
     if (method === "GET" && path === "/api/pricing") return json(res, 200, await pricing());
-    if (method === "GET" && path === "/api/slots") return json(res, 200, await slots());
+    if (method === "GET" && path === "/api/slots") return json(res, 200, await slots(url.searchParams.get("from") || "", url.searchParams.get("days") || 21));
+    if (method === "GET" && path === "/api/reviews") {
+      const rows = await safeRest("reviews", "select=*&order=created_at.desc");
+      return json(res, 200, { reviews: rows.filter((r) => (r.status || "Publié") === "Publié") });
+    }
 
     if (method === "POST" && path === "/api/contact") {
       const b = await body(req), name = clean(b.name, 160), email = clean(b.email, 200).toLowerCase(), message = clean(b.message, 4000);

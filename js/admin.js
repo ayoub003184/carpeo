@@ -1385,7 +1385,15 @@
     ]);
     var bookings = (bData.bookings || []).filter(function (b) { return b.status !== "Annulé"; });
     var tasks = tData.tasks || [];
-    var blocked = tData.blockedSlots || [];
+    var blocked = (tData.blockedSlots || []).slice();
+    try {
+      var localSt = getLocalStore();
+      (localSt.blockedSlots || []).forEach(function (lbl) {
+        if (!blocked.some(function (x) { return String(x.id) === String(lbl.id) || (x.slot_start === lbl.slot_start && x.slot_end === lbl.slot_end); })) {
+          blocked.push(lbl);
+        }
+      });
+    } catch (e) {}
 
     var weekDays = getWeekDays(ui.weekOffset);
     var times = ["08:00", "11:00", "14:00", "17:00"];
@@ -1456,16 +1464,19 @@
       '</div>' +
 
       '<hr style="border:0;border-top:1px solid var(--line);margin:1rem 0">' +
-      '<h3>Bloquer des jours ou une période</h3>' +
+      '<h3>Bloquer des jours de congé ou une période</h3>' +
+      '<p class="note" style="margin-top:-0.3rem">Les dates bloquées ici deviennent immédiatement indisponibles dans le parcours de réservation public.</p>' +
       '<form id="block-slot-form" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.5rem;align-items:end">' +
       '<div><label for="bs-start">Date de début</label><input id="bs-start" type="date" value="' + esc(ui.selectedDate) + '" required style="margin:0"></div>' +
       '<div><label for="bs-end">Date de fin incluse</label><input id="bs-end" type="date" value="' + esc(ui.selectedDate) + '" required style="margin:0"></div>' +
-      '<div><label for="bs-reason">Motif</label><input id="bs-reason" placeholder="Congé, maintenance…" style="margin:0"></div>' +
+      '<div><label for="bs-reason">Motif</label><input id="bs-reason" value="Congé" placeholder="Congé, fermeture…" style="margin:0"></div>' +
       '<button type="submit" class="btn btn-night" style="min-height:42px;padding:0.5rem 0.9rem;font-size:0.88rem">Bloquer la période</button>' +
       '</form>' +
-      (blocked.length ? '<div style="margin-top:0.65rem">' + blocked.map(function (bl) {
-        return '<span class="badge" style="margin:0.2rem 0.3rem 0 0">' + esc(bl.slot_start) + (bl.slot_end && bl.slot_end !== bl.slot_start ? ' → ' + esc(bl.slot_end) : '') + ' (' + esc(bl.reason || "Bloqué") + ') <button type="button" class="mini" data-unblock="' + bl.id + '">×</button></span>';
-      }).join("") + '</div>' : "") +
+      (blocked.length ? '<div style="margin-top:0.85rem"><strong style="font-size:0.88rem;display:block;margin-bottom:0.4rem">Périodes bloquées actives (' + blocked.length + ') :</strong><div style="display:flex;flex-wrap:wrap;gap:0.45rem">' + blocked.map(function (bl) {
+        return '<span class="badge" style="background:#fce8e8;color:#7a1c1c;padding:0.35rem 0.65rem;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.4rem;margin:0">' +
+          '<strong>' + esc(bl.slot_start) + (bl.slot_end && bl.slot_end !== bl.slot_start ? ' → ' + esc(bl.slot_end) : '') + '</strong> (' + esc(bl.reason || "Congé") + ') ' +
+          '<button type="button" class="mini" data-unblock="' + bl.id + '" data-unblock-start="' + esc(bl.slot_start) + '" style="color:#7a1c1c;font-weight:700;margin-left:0.2rem">Débloquer ×</button></span>';
+      }).join("") + '</div></div>' : '<p class="note" style="margin-top:0.6rem">Aucune période de congé bloquée actuellement.</p>') +
       '</div></div>' +
 
       // 3. Gestion des tâches de l'équipe
@@ -1551,19 +1562,53 @@
       }
     };
 
+    var bsStartInput = document.getElementById("bs-start");
+    var bsEndInput = document.getElementById("bs-end");
+    if (bsStartInput && bsEndInput) {
+      bsStartInput.onchange = function () {
+        if (bsEndInput.value < bsStartInput.value) bsEndInput.value = bsStartInput.value;
+      };
+    }
+
     document.getElementById("block-slot-form").onsubmit = async function (e) {
       e.preventDefault();
-      await api("/api/admin/blocked-slots", {
+      var sVal = document.getElementById("bs-start").value;
+      var eVal = document.getElementById("bs-end").value || sVal;
+      if (eVal < sVal) { var tmp = sVal; sVal = eVal; eVal = tmp; }
+      var rVal = document.getElementById("bs-reason").value.trim() || "Congé";
+      var res = await api("/api/admin/blocked-slots", {
         method: "POST",
-        body: { start: document.getElementById("bs-start").value, end: document.getElementById("bs-end").value, reason: document.getElementById("bs-reason").value }
+        body: { start: sVal, end: eVal, reason: rVal }
       });
-      note("Période bloquée dans le planning et retirée des créneaux publics.");
+      try {
+        var st = getLocalStore();
+        st.blockedSlots = st.blockedSlots || [];
+        if (!st.blockedSlots.some(function (x) { return x.slot_start === sVal && x.slot_end === eVal; })) {
+          st.blockedSlots.unshift({ id: (res && res.id) || Date.now(), slot_start: sVal, slot_end: eVal, reason: rVal });
+          saveLocalStore(st);
+        }
+      } catch (err) {}
+      ui.selectedDate = sVal;
+      var startDay = new Date(sVal + "T12:00:00");
+      var today = new Date();
+      var diffDays = Math.round((startDay - today) / 86400000);
+      ui.weekOffset = Math.floor(diffDays / 7);
+      note("Période du " + sVal + " au " + eVal + " (" + rVal + ") bloquée dans le planning et retirée des créneaux publics.");
       viewPlanning();
     };
     document.querySelectorAll("[data-unblock]").forEach(function (btn) {
       btn.onclick = async function () {
-        await api("/api/admin/blocked-slots/" + btn.dataset.unblock, { method: "DELETE" });
-        note("Créneau débloqué.");
+        var bid = btn.dataset.unblock;
+        var bstart = btn.dataset.unblockStart;
+        await api("/api/admin/blocked-slots/" + bid, { method: "DELETE" });
+        try {
+          var st = getLocalStore();
+          st.blockedSlots = (st.blockedSlots || []).filter(function (x) {
+            return String(x.id) !== String(bid) && x.slot_start !== bstart;
+          });
+          saveLocalStore(st);
+        } catch (err) {}
+        note("Période débloquée : les créneaux sont de nouveau disponibles.");
         viewPlanning();
       };
     });

@@ -353,28 +353,38 @@ async function storePhotos(bookingId, photos) {
   return saved;
 }
 
-function availableSlots(from = new Date()) {
+function availableSlots(fromDateStr = "", totalDays = 21) {
   const booked = new Set(db.prepare("SELECT slot FROM bookings WHERE slot IS NOT NULL AND status NOT IN ('Annulé','Terminé')").all().map((x) => x.slot));
   const blockedRows = db.prepare("SELECT id,slot_start,slot_end,reason FROM blocked_slots ORDER BY slot_start").all();
-  const isBlocked = (slot) => blockedRows.some((row) => {
+  const findBlock = (slot) => blockedRows.find((row) => {
     const start = String(row.slot_start || "").length === 10 ? `${row.slot_start} 00:00` : String(row.slot_start || "");
     const rawEnd = String(row.slot_end || row.slot_start || "");
     const end = rawEnd.length === 10 ? `${rawEnd} 23:59` : rawEnd;
     return Boolean(start && end && slot >= start && slot <= end);
   });
   const result = [];
-  for (let d = 1; d <= 14; d++) {
-    const date = new Date(from);
-    date.setDate(from.getDate() + d);
+  const baseDate = /^\d{4}-\d{2}-\d{2}$/.test(fromDateStr) ? new Date(`${fromDateStr}T12:00:00`) : new Date();
+  const startOffset = /^\d{4}-\d{2}-\d{2}$/.test(fromDateStr) ? 0 : 1;
+  const count = Math.min(60, Math.max(7, Number(totalDays) || 21));
+  for (let d = startOffset; d < startOffset + count; d++) {
+    const date = new Date(baseDate);
+    date.setDate(baseDate.getDate() + d);
     if (date.getDay() === 0) continue;
     const iso = date.toISOString().slice(0, 10);
+    const daySlots = ["08:00", "11:00", "14:00", "17:00"].map((time) => {
+      const val = `${iso} ${time}`;
+      const bl = findBlock(val);
+      return {
+        value: val,
+        time,
+        available: !booked.has(val) && !bl,
+        reason: bl ? (bl.reason || "Congé / Indisponible") : (booked.has(val) ? "Réservé" : "")
+      };
+    });
     result.push({
       date: iso,
-      slots: ["08:00", "11:00", "14:00", "17:00"].map((time) => ({
-        value: `${iso} ${time}`,
-        time,
-        available: !booked.has(`${iso} ${time}`) && !isBlocked(`${iso} ${time}`)
-      }))
+      blockedReason: daySlots.every((s) => !s.available && s.reason) ? daySlots[0].reason : "",
+      slots: daySlots
     });
   }
   return { days: result, blocked: blockedRows };
@@ -969,7 +979,11 @@ async function api(req, res, url) {
     });
   }
   if (method === "GET" && url.pathname === "/api/pricing") return sendJson(res, 200, pricingPayload());
-  if (method === "GET" && url.pathname === "/api/slots") return sendJson(res, 200, availableSlots());
+  if (method === "GET" && url.pathname === "/api/slots") return sendJson(res, 200, availableSlots(url.searchParams.get("from") || "", url.searchParams.get("days") || 21));
+  if (method === "GET" && url.pathname === "/api/reviews") {
+    const rows = db.prepare("SELECT * FROM reviews WHERE status='Publié' ORDER BY created_at DESC").all();
+    return sendJson(res, 200, { reviews: rows });
+  }
 
   if (method === "POST" && url.pathname === "/api/stripe/webhook") {
     const event = stripeEvent(await readBody(req, true), req.headers["stripe-signature"]);
