@@ -212,7 +212,7 @@ summary { cursor: pointer; font-weight: 600; color: var(--night); }
   min-height: 240px; border-radius: 16px; border: 1.5px dashed rgba(6, 91, 127, 0.45);
   background: var(--mist); display: grid; place-items: center; text-align: center; padding: 1.2rem; color: var(--petrol);
 }
-.contact-grid { grid-template-columns: 1.08fr 0.92fr; }
+.contact-grid { grid-template-columns: 1.15fr 0.85fr; }
 
 .site-footer { background: var(--night); color: #fff; padding: 2.6rem 0 1.3rem; }
 .site-footer a { color: #fff; }
