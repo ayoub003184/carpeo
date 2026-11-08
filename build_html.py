@@ -27,7 +27,7 @@ HEAD = """<!DOCTYPE html>
     <button class="nav-btn" type="button" aria-expanded="false" aria-controls="menu"><span class="sr">Menu</span><span></span><span></span><span></span></button>
     <nav id="menu" class="nav" aria-label="Navigation principale">
       <a href="index.html" data-nav="accueil">Accueil</a>
-      <a href="services.html" data-nav="services">Services</a>
+      <a href="services.html" data-nav="services">Particuliers</a>
       <a href="tarifs.html" data-nav="tarifs">Tarifs</a>
       <a href="a-propos.html" data-nav="apropos">À propos</a>
       <a href="faq.html" data-nav="faq">FAQ</a>
@@ -44,7 +44,7 @@ FOOT = """
   <div class="wrap foot-grid">
     <img class="foot-logo" src="assets/logo-compact-white.webp" alt="CARPEO, nettoyage textile" width="206" height="150">
     <div>
-      <p>prolongez la vie de vos textiles</p>
+      <p>Redonnez vie à vos textiles</p>
       <p class="fine"><span data-area></span> · <span data-hours></span></p>
       <p class="fine">Horaires indicatifs, à confirmer. <a data-email href="mailto:contact@carpeo.fr">contact@carpeo.fr</a> · <span data-phone></span></p>
       <nav class="legal-links" aria-label="Liens de pied de page">
@@ -98,7 +98,7 @@ INDEX = f"""
   <div class="hero-copy">
     <p class="sur hero-line">Nettoyage textile</p>
     <h1 class="hero-line d2">Vos textiles retrouvent leur éclat</h1>
-    <p class="lead hero-line d3">Prolongez la vie de vos textiles avec CARPEO. Canapés, matelas, tapis et moquettes nettoyés à domicile, avec une méthode adaptée à chaque fibre.</p>
+    <p class="lead hero-line d3">Redonnez vie à vos textiles avec CARPEO. Canapés, matelas, tapis et moquettes nettoyés à domicile, avec une méthode adaptée à chaque fibre.</p>
     <div class="btn-row hero-line d4">
       <a class="btn btn-ocean" href="reserver.html">Réserver</a>
       <a class="btn btn-night" href="reserver.html?parcours=devis">Demander un devis</a>
@@ -143,7 +143,7 @@ INDEX = f"""
       <div class="gradient-bar"></div>
       <h2>Le même canapé, avant le passage</h2>
       <p>Faites glisser le curseur pour comparer le canapé sale avant l’intervention et son rendu après nettoyage.</p>
-      <p class="note">Illustration du résultat attendu ; chaque textile et chaque tache réagissent différemment.</p>
+      <p class="note">Illustration du résultat attendu : chaque textile et chaque tache peuvent réagir différemment au nettoyage.</p>
     </div>
     <div class="ba reveal" data-ba style="--pos:58%">
       <img src="assets/photos/canape-avant-sale.webp" width="1400" height="933" alt="Canapé vert visiblement sale avant nettoyage, avec salissures incrustées et taches réalistes.">
@@ -250,7 +250,7 @@ INDEX = f"""
     <details class="reveal"><summary>Combien de temps faut-il pour le séchage ?</summary><p>Il faut généralement compter entre 6 et 24 heures, voire davantage pour certains textiles. Une bonne aération favorise un séchage plus rapide.</p></details>
     <details class="reveal"><summary>Les taches disparaissent-elles complètement ?</summary><p>Nous faisons notre maximum, mais certaines taches anciennes ou incrustées peuvent être difficiles à retirer totalement.</p></details>
     <details class="reveal"><summary>Comment fonctionne l'acompte de réservation de 20 € ?</summary><p>Avec l'avance immédiate, l'acompte est remboursé à la fin de la prestation. Sans l'avance immédiate, il est déduit du montant total.</p></details>
-    <details class="reveal"><summary>Qu'est-ce que l'avance immédiate du crédit d'impôt ?</summary><p>Ce service gratuit de l'Urssaf permet de bénéficier immédiatement de 50 % de crédit d'impôt, selon votre éligibilité.</p></details>
+    <details class="reveal"><summary>Qu'est-ce que l'avance immédiate du crédit d'impôt ?</summary><p>Si vous êtes éligible, l’avance immédiate vous permet de bénéficier directement de 50 % de crédit d’impôt, sans attendre votre prochaine déclaration de revenus.</p><p>Le jour de l’intervention, prévoyez simplement 5 à 10 minutes avec notre technicien pour effectuer votre inscription au dispositif.</p><p>Exemple : pour une prestation de 100 €, vous ne payez que 50 € grâce à l’avance immédiate. Les 50 € restants sont pris en charge par le dispositif.</p><p>Vous profitez ainsi de votre avantage fiscal immédiatement, via votre espace personnel Urssaf.</p></details>
     <details class="reveal"><summary>Puis-je annuler et récupérer mon acompte ?</summary><p>Oui, si l'annulation intervient au moins 48 heures avant l'intervention. À moins de 48 heures, l'acompte est conservé conformément aux CGV.</p></details>
     <p><a class="btn btn-ghost" href="faq.html">Voir toute la FAQ</a></p>
   </div>
@@ -284,7 +284,7 @@ INDEX = f"""
 page("index.html", "CARPEO — Nettoyage de canapés, matelas et tapis",
      "CARPEO prolonge la vie de vos textiles : nettoyage à domicile de canapés, matelas, tapis, moquettes, fauteuils et chaises. Prix clairs, devis et réservation.",
      "accueil", INDEX,
-     extra='<script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"CARPEO","description":"Nettoyage professionnel de textiles d\'ameublement à domicile.","url":"https://www.carpeo.fr","email":"contact@carpeo.fr","areaServed":"FR","priceRange":"€€","slogan":"prolongez la vie de vos textiles"}</script>')
+     extra='<script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"CARPEO","description":"Nettoyage professionnel de textiles d\'ameublement à domicile.","url":"https://www.carpeo.fr","email":"contact@carpeo.fr","areaServed":"FR","priceRange":"€€","slogan":"Redonnez vie à vos textiles"}</script>')
 
 SERVICES = f"""
 <section class="section wrap">
@@ -412,7 +412,7 @@ ABOUT = """
   <p class="lead">CARPEO nettoie les textiles d'ameublement pour les garder en usage plus longtemps : canapés, matelas, tapis, moquettes, fauteuils, chaises et coussins.</p>
   <img src="assets/logo-full.webp" alt="Logo CARPEO complet : symbole, nom, signature et pictogrammes." width="420" height="420" style="width:min(420px,100%);height:auto;background:#FDFCF6">
   <h2>La promesse</h2>
-  <p>prolongez la vie de vos textiles. L'entretien est choisi selon la matière, pour préserver les fibres. Les allégations plus précises sur les produits viendront quand la liste réelle des procédés sera fournie. Rien n'est affirmé au-delà de ça.</p>
+  <p>Redonnez vie à vos textiles. L'entretien est choisi selon la matière, pour préserver les fibres. Les allégations plus précises sur les produits viendront quand la liste réelle des procédés sera fournie. Rien n'est affirmé au-delà de ça.</p>
   <h2>Ce que le site doit permettre</h2>
   <p>Montrer le service, donner un prix quand il est fiable, recueillir un devis quand il ne l'est pas, et garder une trace du dossier : statut, créneau, acompte.</p>
 </section>
@@ -510,7 +510,7 @@ MENTIONS = """
   <h2>Hébergement</h2>
   <p>Hébergeur non choisi. Nom, adresse et téléphone seront indiqués ici avant la mise en production.</p>
   <h2>Propriété</h2>
-  <p>Le logo, les couleurs et la signature « prolongez la vie de vos textiles » appartiennent à CARPEO. Les photos d'ambiance actuelles sont des visuels temporaires.</p>
+  <p>Le logo, les couleurs et la signature « Redonnez vie à vos textiles » appartiennent à CARPEO. Les photos d'ambiance actuelles sont des visuels temporaires.</p>
 </section>
 """
 page("mentions-legales.html", "Mentions légales — CARPEO",

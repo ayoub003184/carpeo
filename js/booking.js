@@ -269,7 +269,7 @@
     if (!host) return;
     var html = "";
     try {
-      var response = await fetch("/api/slots", { headers: { Accept: "application/json" } });
+      var response = await fetch("/api/slots?t=" + Date.now(), { cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-cache" } });
       if (!response.ok) throw new Error();
       var payload = await response.json();
       (payload.days || []).forEach(function (day) {
@@ -281,7 +281,22 @@
         });
         html += "</div>";
       });
-    } catch (error) { html = '<p class="field-error">Impossible de charger le planning. Réessayez dans un instant.</p>'; }
+    } catch (error) {
+      var from = new Date();
+      for (var d = 1; d <= 14; d++) {
+        var fallbackDate = new Date(from);
+        fallbackDate.setDate(from.getDate() + d);
+        if (fallbackDate.getDay() === 0) continue;
+        var iso = fallbackDate.toISOString().slice(0, 10);
+        html += "<p><strong>" + fallbackDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }) + "</strong></p><div class='slots'>";
+        ["08:00", "11:00", "14:00", "17:00"].forEach(function (time) {
+          var id = iso + " " + time;
+          html += '<button type="button" class="slot" data-slot="' + id + '" aria-pressed="' + (state.slot === id) + '">' + time + "</button>";
+        });
+        html += "</div>";
+      }
+      html += '<p class="note">Créneaux indicatifs : la synchronisation du planning sera confirmée avant validation définitive.</p>';
+    }
     host.innerHTML = html;
     host.querySelectorAll("[data-slot]").forEach(function (b) {
       b.addEventListener("click", function () {

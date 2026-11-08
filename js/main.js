@@ -6,6 +6,22 @@
     var btn = document.querySelector(".nav-btn");
     var nav = document.getElementById("menu");
     var page = document.body.getAttribute("data-nav");
+    if (nav) {
+      var privateLink = nav.querySelector('[data-nav="services"]');
+      var proLink = nav.querySelector('[data-nav="pros"]');
+      if (privateLink) privateLink.textContent = "Particuliers";
+      if (proLink) proLink.textContent = "Professionnels";
+      if (!nav.querySelector(".nav-book")) {
+        var bookLink = document.createElement("a");
+        bookLink.className = "nav-book";
+        bookLink.href = "reserver.html";
+        bookLink.textContent = "Réserver ma prestation";
+        nav.appendChild(bookLink);
+      }
+    }
+    document.querySelectorAll(".site-footer p").forEach(function (p) {
+      if (/prolongez la vie de vos textiles/i.test(p.textContent)) p.textContent = "Redonnez vie à vos textiles";
+    });
     if (nav && page) {
       nav.querySelectorAll("a").forEach(function (a) {
         if (a.getAttribute("data-nav") === page) a.setAttribute("aria-current", "page");

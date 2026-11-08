@@ -399,7 +399,17 @@
     if (path === "/api/admin/pricing") {
       var p = window.CARPEO_PRICING ? window.CARPEO_PRICING.load() : { deposit: 20, items: {} };
       if (method === "PUT") {
-        if (bodyObj.deposit != null) st.settings.deposit = String(bodyObj.deposit);
+        p = JSON.parse(JSON.stringify(p));
+        if (bodyObj.deposit != null) {
+          p.deposit = Math.max(0, Number(bodyObj.deposit) || 0);
+          st.settings.deposit = String(p.deposit);
+        }
+        Object.keys(bodyObj.items || {}).forEach(function (key) {
+          if (!p.items[key]) return;
+          p.items[key].mode = bodyObj.items[key].mode === "price" ? "price" : "quote";
+          p.items[key].price = Math.max(0, Number(bodyObj.items[key].price) || 0);
+        });
+        try { localStorage.setItem(window.CARPEO_PRICING.storageKey, JSON.stringify(p)); } catch (e) {}
         saveLocalStore(st);
       }
       var itemsOut = {};
@@ -1169,6 +1179,14 @@
     return days;
   }
 
+  function blockedSlotAt(block, slot) {
+    var start = String(block.slot_start || "");
+    var end = String(block.slot_end || block.slot_start || "");
+    if (start.length === 10) start += " 00:00";
+    if (end.length === 10) end += " 23:59";
+    return Boolean(start && end && slot >= start && slot <= end);
+  }
+
   async function viewPlanning() {
     var [bData, tData] = await Promise.all([
       api("/api/admin/bookings"),
@@ -1193,7 +1211,7 @@
       weekDays.forEach(function (wd) {
         var slotKey = wd.iso + " " + tm;
         var slotBookings = bookings.filter(function (b) { return b.slot === slotKey; });
-        var isBlocked = blocked.find(function (bl) { return bl.slot_start === slotKey; });
+        var isBlocked = blocked.find(function (bl) { return blockedSlotAt(bl, slotKey); });
         var inner = slotBookings.map(function (b) {
           var c = b.customer || {};
           return '<div class="agenda-event"><strong>' + esc(b.ref) + '</strong><br>' + esc(c.nom || "") + ' (' + esc(c.ville || "") + ')</div>';
@@ -1247,14 +1265,15 @@
       '</div>' +
 
       '<hr style="border:0;border-top:1px solid var(--line);margin:1rem 0">' +
-      '<h3>Bloquer un créneau indisponible</h3>' +
-      '<form id="block-slot-form" style="display:grid;grid-template-columns:1fr 1fr auto;gap:0.5rem;align-items:end">' +
-      '<div><label>Créneau (AAAA-MM-JJ HH:MM)</label><input id="bs-start" placeholder="' + esc(ui.selectedDate) + ' 14:00" required style="margin:0"></div>' +
-      '<div><label>Motif</label><input id="bs-reason" placeholder="Congé, maintenance…" style="margin:0"></div>' +
-      '<button type="submit" class="btn btn-night" style="min-height:42px;padding:0.5rem 0.9rem;font-size:0.88rem">Bloquer</button>' +
+      '<h3>Bloquer des jours ou une période</h3>' +
+      '<form id="block-slot-form" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.5rem;align-items:end">' +
+      '<div><label for="bs-start">Date de début</label><input id="bs-start" type="date" value="' + esc(ui.selectedDate) + '" required style="margin:0"></div>' +
+      '<div><label for="bs-end">Date de fin incluse</label><input id="bs-end" type="date" value="' + esc(ui.selectedDate) + '" required style="margin:0"></div>' +
+      '<div><label for="bs-reason">Motif</label><input id="bs-reason" placeholder="Congé, maintenance…" style="margin:0"></div>' +
+      '<button type="submit" class="btn btn-night" style="min-height:42px;padding:0.5rem 0.9rem;font-size:0.88rem">Bloquer la période</button>' +
       '</form>' +
       (blocked.length ? '<div style="margin-top:0.65rem">' + blocked.map(function (bl) {
-        return '<span class="badge" style="margin:0.2rem 0.3rem 0 0">' + esc(bl.slot_start) + ' (' + esc(bl.reason || "Bloqué") + ') <button type="button" class="mini" data-unblock="' + bl.id + '">×</button></span>';
+        return '<span class="badge" style="margin:0.2rem 0.3rem 0 0">' + esc(bl.slot_start) + (bl.slot_end && bl.slot_end !== bl.slot_start ? ' → ' + esc(bl.slot_end) : '') + ' (' + esc(bl.reason || "Bloqué") + ') <button type="button" class="mini" data-unblock="' + bl.id + '">×</button></span>';
       }).join("") + '</div>' : "") +
       '</div></div>' +
 
@@ -1345,9 +1364,9 @@
       e.preventDefault();
       await api("/api/admin/blocked-slots", {
         method: "POST",
-        body: { start: document.getElementById("bs-start").value, reason: document.getElementById("bs-reason").value }
+        body: { start: document.getElementById("bs-start").value, end: document.getElementById("bs-end").value, reason: document.getElementById("bs-reason").value }
       });
-      note("Créneau bloqué dans le planning.");
+      note("Période bloquée dans le planning et retirée des créneaux publics.");
       viewPlanning();
     };
     document.querySelectorAll("[data-unblock]").forEach(function (btn) {

@@ -356,7 +356,12 @@ async function storePhotos(bookingId, photos) {
 function availableSlots(from = new Date()) {
   const booked = new Set(db.prepare("SELECT slot FROM bookings WHERE slot IS NOT NULL AND status NOT IN ('Annulé','Terminé')").all().map((x) => x.slot));
   const blockedRows = db.prepare("SELECT id,slot_start,slot_end,reason FROM blocked_slots ORDER BY slot_start").all();
-  blockedRows.forEach((x) => booked.add(x.slot_start));
+  const isBlocked = (slot) => blockedRows.some((row) => {
+    const start = String(row.slot_start || "").length === 10 ? `${row.slot_start} 00:00` : String(row.slot_start || "");
+    const rawEnd = String(row.slot_end || row.slot_start || "");
+    const end = rawEnd.length === 10 ? `${rawEnd} 23:59` : rawEnd;
+    return Boolean(start && end && slot >= start && slot <= end);
+  });
   const result = [];
   for (let d = 1; d <= 14; d++) {
     const date = new Date(from);
@@ -368,7 +373,7 @@ function availableSlots(from = new Date()) {
       slots: ["08:00", "11:00", "14:00", "17:00"].map((time) => ({
         value: `${iso} ${time}`,
         time,
-        available: !booked.has(`${iso} ${time}`)
+        available: !booked.has(`${iso} ${time}`) && !isBlocked(`${iso} ${time}`)
       }))
     });
   }
@@ -1017,8 +1022,16 @@ async function api(req, res, url) {
     const calc = calculate(items, body.advance, body.promo);
     if (calc.type === "reservation" && !cleanText(body.slot, 30)) return sendJson(res, 422, { error: "Créneau requis" });
     if (calc.type === "reservation") {
-      const used = db.prepare("SELECT id FROM bookings WHERE slot=? AND status NOT IN ('Annulé','Terminé')").get(cleanText(body.slot, 30));
+      const requestedSlot = cleanText(body.slot, 30);
+      const used = db.prepare("SELECT id FROM bookings WHERE slot=? AND status NOT IN ('Annulé','Terminé')").get(requestedSlot);
       if (used) return sendJson(res, 409, { error: "Ce créneau vient d’être réservé" });
+      const blocked = db.prepare("SELECT slot_start,slot_end FROM blocked_slots").all().some((row) => {
+        const start = String(row.slot_start || "").length === 10 ? `${row.slot_start} 00:00` : String(row.slot_start || "");
+        const rawEnd = String(row.slot_end || row.slot_start || "");
+        const end = rawEnd.length === 10 ? `${rawEnd} 23:59` : rawEnd;
+        return requestedSlot >= start && requestedSlot <= end;
+      });
+      if (blocked) return sendJson(res, 409, { error: "Ce créneau est indisponible" });
     }
     const coords = await geocodeAddress(customer);
     const attribution = body.attribution || { source: customer.heard || "Site web" };

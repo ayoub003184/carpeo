@@ -23,10 +23,11 @@
     <button class="nav-btn" type="button" aria-expanded="false" aria-controls="menu"><span class="sr">Menu</span><span></span><span></span><span></span></button>
     <nav id="menu" class="nav" aria-label="Navigation principale">
       <a href="index.html" data-nav="accueil">Accueil</a>
-      <a href="services.html" data-nav="services">Services</a>
-      <a href="professionnels.html" data-nav="pros">Pros</a>
+      <a href="services.html" data-nav="services">Particuliers</a>
+      <a href="professionnels.html" data-nav="pros">Professionnels</a>
       <a href="faq.html" data-nav="faq">FAQ</a>
       <a href="contact.html" data-nav="contact">Contact</a>
+      <a class="nav-book" href="reserver.html">Réserver ma prestation</a>
     </nav>
   </div>
 </header>
@@ -36,10 +37,13 @@
   <div class="hero-copy">
     <p class="sur hero-line">Nettoyage textile</p>
     <h1 class="hero-line d2">Redonnez vie à vos textiles</h1>
-    <p class="lead hero-line d3">Nettoyage par injection-extraction à domicile et en entreprise. Canapés, matelas, tapis, moquettes, fauteuils, chaises et têtes de lit, chez les particuliers et les professionnels.</p>
+    <p class="lead hero-line d3">Un nettoyage professionnel, à domicile, pour les particuliers et les professionnels.</p>
+    <a class="hero-tax hero-line d3" href="#avance-immediate">
+      <span aria-hidden="true">✓</span><strong>Profitez de <b>50 %</b> de crédit d’impôt</strong><small>avec l’avance immédiate</small>
+    </a>
     <div class="btn-row hero-line d4">
-      <a class="btn btn-ocean" href="reserver.html">Réserver maintenant</a>
-      <a class="btn btn-night" href="reserver.html?parcours=devis">Obtenir un devis gratuit</a>
+      <a class="btn btn-ocean" href="reserver.html">Réserver ma prestation <small>Particuliers</small></a>
+      <a class="btn btn-ghost" href="professionnels.html">Nos services pros <small>Demander un devis</small></a>
     </div>
     <p class="hero-url" data-site>www.carpeo.fr</p>
   </div>
@@ -51,6 +55,18 @@
     </a>
     <span class="spark s1"></span><span class="spark s2"></span><span class="spark s3"></span>
     <img src="assets/photos/hero.webp" width="1400" height="952" alt="Salon lumineux avec un canapé clair et un grand tapis, lumière du jour. Visuel d'ambiance à remplacer par une photo CARPEO." fetchpriority="high">
+  </div>
+</section>
+<section class="section audience-section" data-home-keep>
+  <div class="wrap audience-grid">
+    <article class="audience-card reveal">
+      <img src="assets/photos/hero.webp" alt="Salon lumineux avec canapé textile pour les prestations chez les particuliers." width="1400" height="952">
+      <div><p class="sur">Particuliers</p><h2>Nettoyage à domicile</h2><p>Canapés, matelas, tapis, fauteuils, chaises et têtes de lit.</p><a class="btn btn-ocean" href="reserver.html">Réserver maintenant</a></div>
+    </article>
+    <article class="audience-card reveal">
+      <img src="assets/photos/bureaux-pro.png" alt="Bureaux professionnels modernes avec moquette et fauteuils textiles." width="1536" height="1024">
+      <div><p class="sur">Professionnels</p><h2>Hôtels, conciergeries, bureaux et autres</h2><p>Une prestation adaptée à vos surfaces, vos volumes et vos contraintes d’activité.</p><a class="btn btn-night" href="professionnels.html">Demander un devis</a></div>
+    </article>
   </div>
 </section>
 <section class="section" style="padding-top:0" data-home-keep>
@@ -88,7 +104,7 @@
       <div class="gradient-bar"></div>
       <h2>Le même canapé, avant le passage</h2>
       <p>Faites glisser le curseur pour comparer le canapé sale avant l’intervention et son rendu après nettoyage.</p>
-      <p class="note">Illustration du résultat attendu ; chaque textile et chaque tache réagissent différemment.</p>
+      <p class="note">Illustration du résultat attendu : chaque textile et chaque tache peuvent réagir différemment au nettoyage.</p>
     </div>
     <div class="ba reveal" data-ba style="--pos:58%">
       <img src="assets/photos/canape-avant-sale.webp" width="1400" height="933" alt="Canapé vert visiblement sale avant nettoyage, avec salissures incrustées et taches réalistes.">
@@ -169,18 +185,17 @@
     </div>
   </div>
 </section>
-<section class="section" style="padding-top:0">
+<section class="section" style="padding-top:0" data-home-keep>
   <div class="wrap">
     <div class="section-head">
       <p class="sur">Avis</p>
       <div class="gradient-bar"></div>
-      <h2>La place des témoignages</h2>
-      <p>Aucun avis client réel n'a été fourni. Les trois cartes ci-dessous montrent seulement la mise en page.</p>
+      <h2>Les avis CARPEO sur Google Maps</h2>
+      <p>Consultez la note, les témoignages et les photos publiés directement sur la fiche Google de CARPEO.</p>
     </div>
-    <div class="quotes grid-3">
-      <blockquote class="reveal"><span class="badge">Exemple</span><p>Le canapé a retrouvé une couleur uniforme. Intervention soignée, sans odeur forte au départ.</p><p class="note">Prénom, ville — à remplacer</p></blockquote>
-      <blockquote class="reveal"><span class="badge">Exemple</span><p>Le créneau du matin a été respecté. Le solde correspondait bien à l'acompte déjà versé.</p><p class="note">Prénom, ville — à remplacer</p></blockquote>
-      <blockquote class="reveal"><span class="badge">Exemple</span><p>Devis reçu avec les photos du tapis, puis un passage le samedi suivant.</p><p class="note">Prénom, ville — à remplacer</p></blockquote>
+    <div class="google-reviews reveal">
+      <div class="google-score"><span class="google-g">G</span><strong>4,9/5</strong><span aria-label="5 étoiles">★★★★★</span><small>Avis Google</small></div>
+      <div><h3>Des avis authentiques, consultables sur Google</h3><p>Pour garantir leur authenticité, les avis ne sont pas recopiés ni modifiés sur ce site.</p><a class="btn btn-ocean" href="https://www.google.com/maps/place/Carpeo/@48.8350077,2.4096267,11z/data=!3m1!4b1!4m6!3m5!1s0x42afe645686fa375:0xe9c68ae617bca720!8m2!3d48.8350076!4d2.4096267!16s%2Fg%2F11zzsk71ns?entry=ttu&amp;g_ep=EgoyMDI2MTEwMy4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener">Voir tous les avis sur Google Maps</a></div>
     </div>
   </div>
 </section>
@@ -195,17 +210,17 @@
     <details class="reveal"><summary>Combien de temps faut-il pour le séchage ?</summary><p>Il faut généralement compter entre 6 et 24 heures, voire davantage pour certains textiles. Une bonne aération favorise un séchage plus rapide.</p></details>
     <details class="reveal"><summary>Les taches disparaissent-elles complètement ?</summary><p>Nous faisons notre maximum, mais certaines taches anciennes ou incrustées peuvent être difficiles à retirer totalement.</p></details>
     <details class="reveal"><summary>Comment fonctionne l’acompte de réservation de <span data-deposit>20 €</span> ?</summary><p>L’acompte pour toutes les prestations est fixe à <span data-deposit>20 €</span> (et non 50 % du montant). Il permet de confirmer votre créneau et est déduit du montant total à régler.</p></details>
-    <details class="reveal"><summary>Qu’est-ce que l’avance immédiate du crédit d’impôt ?</summary><p>Ce service gratuit de l’Urssaf permet de bénéficier immédiatement de 50 % de crédit d’impôt, selon votre éligibilité.</p></details>
+    <details class="reveal"><summary>Qu’est-ce que l’avance immédiate du crédit d’impôt ?</summary><p>Si vous êtes éligible, l’avance immédiate vous permet de bénéficier directement de 50 % de crédit d’impôt, sans attendre votre prochaine déclaration de revenus.</p><p>Le jour de l’intervention, prévoyez simplement 5 à 10 minutes avec notre technicien pour effectuer votre inscription au dispositif.</p><p>Exemple : pour une prestation de 100 €, vous ne payez que 50 € grâce à l’avance immédiate. Les 50 € restants sont pris en charge par le dispositif.</p><p>Vous profitez ainsi de votre avantage fiscal immédiatement, via votre espace personnel Urssaf.</p></details>
     <details class="reveal"><summary>Puis-je annuler et récupérer mon acompte ?</summary><p>Oui, si l’annulation intervient au moins 48 heures avant l’intervention. À moins de 48 heures, l’acompte est conservé conformément aux CGV.</p></details>
     <p><a class="btn btn-ghost" href="faq.html">Voir toute la FAQ</a></p>
   </div>
 </section>
-<section class="section" style="padding-top:0">
+<section class="section tax-section" id="avance-immediate" style="padding-top:0" data-home-keep>
   <div class="wrap">
     <div class="band reveal">
       <p class="sur">Avance immédiate</p>
       <h2>Profitez de 50 % de crédit d'impôt avec l'avance immédiate</h2>
-      <p>Vous réglez le reste à charge si la prestation et votre situation sont éligibles. Le dispositif est géré par l'Urssaf. À l'arrivée, prévoyez 5 à 10 minutes pour finaliser l'inscription avec nous.</p>
+       <p>Si vous êtes éligible, vous bénéficiez directement de 50 % de crédit d’impôt, sans attendre votre prochaine déclaration. Le jour de l’intervention, prévoyez 5 à 10 minutes avec notre technicien pour effectuer votre inscription au dispositif.</p>
       <label for="tax-price">Prix de la prestation (€)</label>
       <input id="tax-price" type="number" min="0" value="120" style="max-width:180px;background:#fff;color:var(--ink)">
       <div class="sim">
@@ -264,7 +279,7 @@
   <div class="wrap foot-grid">
     <img class="foot-logo" src="assets/logo-compact-white.webp" alt="CARPEO, nettoyage textile" width="206" height="150">
     <div>
-      <p>prolongez la vie de vos textiles</p>
+      <p>Redonnez vie à vos textiles</p>
       <p class="fine"><span data-area></span> · <span data-hours></span></p>
       <p class="fine"><a data-email href="mailto:contact@carpeo.fr">contact@carpeo.fr</a> · <span data-phone></span></p>
       <nav class="legal-links" aria-label="Liens de pied de page">

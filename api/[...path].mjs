@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
+const CARPEO_TABLES = new Set(["users", "pricing", "settings", "bookings", "contacts", "conversations", "tasks", "blocked_slots", "notifications", "payments", "reviews", "events", "audit"]);
 const PROMOS = { BIENVENUE10: ["pct", 10], CARPEO20: ["eur", 20], FIDELITE15: ["pct", 15], NOEL2026: ["pct", 10] };
 const PRICE_DEFAULTS = {
   sofa2Straight: ["Canapé droit, 2 places", "Canapés", "price", 89],
@@ -60,7 +61,8 @@ function configured(res) {
   return true;
 }
 async function rest(table, query = "", init = {}) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}${query ? `?${query}` : ""}`, {
+  const physicalTable = CARPEO_TABLES.has(table) ? `carpeo_${table}` : table;
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${physicalTable}${query ? `?${query}` : ""}`, {
     ...init,
     headers: {
       apikey: SERVICE_KEY,
@@ -180,7 +182,13 @@ async function slots() {
     safeRest("bookings", "select=slot&slot=not.is.null&status=not.in.(Annulé,Terminé)"),
     safeRest("blocked_slots", "select=id,slot_start,slot_end,reason&order=slot_start")
   ]);
-  const used = new Set([...booked.map((x) => x.slot), ...blocked.map((x) => x.slot_start)]);
+  const used = new Set(booked.map((x) => x.slot));
+  const isBlocked = (slot) => blocked.some((row) => {
+    const start = String(row.slot_start || "").length === 10 ? `${row.slot_start} 00:00` : String(row.slot_start || "");
+    const rawEnd = String(row.slot_end || row.slot_start || "");
+    const end = rawEnd.length === 10 ? `${rawEnd} 23:59` : rawEnd;
+    return Boolean(start && end && slot >= start && slot <= end);
+  });
   const days = [];
   const from = new Date();
   for (let d = 1; d <= 14; d++) {
@@ -193,7 +201,7 @@ async function slots() {
       slots: ["08:00", "11:00", "14:00", "17:00"].map((time) => ({
         value: `${iso} ${time}`,
         time,
-        available: !used.has(`${iso} ${time}`)
+        available: !used.has(`${iso} ${time}`) && !isBlocked(`${iso} ${time}`)
       }))
     });
   }
@@ -208,7 +216,7 @@ async function uploadPhotos(ref, photos) {
     if (bytes.length > 5 * 1024 * 1024) continue;
     const ext = match[1] === "jpeg" ? "jpg" : match[1];
     const key = `${ref}/${crypto.randomUUID()}.${ext}`;
-    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/booking-photos/${key}`, {
+    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/carpeo-booking-photos/${key}`, {
       method: "POST",
       headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": photo.type || `image/${match[1]}`, "x-upsert": "false" },
       body: bytes
@@ -268,8 +276,19 @@ export default async function handler(req, res) {
       const calc = await calculate(items, b.advance, b.promo);
       if (calc.type === "reservation" && !clean(b.slot, 30)) return json(res, 422, { error: "Créneau requis" });
       if (calc.type === "reservation") {
-        const used = await rest("bookings", `slot=eq.${encodeURIComponent(clean(b.slot, 30))}&status=not.in.(Annulé,Terminé)&select=id&limit=1`);
+        const requestedSlot = clean(b.slot, 30);
+        const [used, blockedRows] = await Promise.all([
+          rest("bookings", `slot=eq.${encodeURIComponent(requestedSlot)}&status=not.in.(Annulé,Terminé)&select=id&limit=1`),
+          safeRest("blocked_slots", "select=slot_start,slot_end")
+        ]);
         if (used.length) return json(res, 409, { error: "Ce créneau vient d’être réservé" });
+        const blocked = blockedRows.some((row) => {
+          const start = String(row.slot_start || "").length === 10 ? `${row.slot_start} 00:00` : String(row.slot_start || "");
+          const rawEnd = String(row.slot_end || row.slot_start || "");
+          const end = rawEnd.length === 10 ? `${rawEnd} 23:59` : rawEnd;
+          return requestedSlot >= start && requestedSlot <= end;
+        });
+        if (blocked) return json(res, 409, { error: "Ce créneau est indisponible" });
       }
       const ref = `CAR-${crypto.randomBytes(4).toString("hex").toUpperCase()}`, key = crypto.randomBytes(8).toString("base64url").toUpperCase();
       const status = calc.type === "devis" ? "Demande reçue" : "Acompte à régler";
@@ -678,8 +697,8 @@ export default async function handler(req, res) {
       }
 
       if (method === "GET" && path === "/api/admin/audit") {
-        const rows = await safeRest("audit", "select=*,users(email)&order=created_at.desc&limit=500");
-        return json(res, 200, { audit: rows.map((x) => ({ ...x, email: x.users?.email || null, users: undefined })) });
+        const rows = await safeRest("audit", "select=*,carpeo_users(email)&order=created_at.desc&limit=500");
+        return json(res, 200, { audit: rows.map((x) => ({ ...x, email: x.carpeo_users?.email || null, carpeo_users: undefined })) });
       }
       if (method === "GET" && path === "/api/admin/users") return json(res, 200, { users: await safeRest("users", "select=id,email,name,role,created_at&order=name") });
       if (method === "POST" && path === "/api/admin/users") {
