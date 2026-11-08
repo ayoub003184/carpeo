@@ -60,6 +60,15 @@
     var d = new Date(iso);
     return isNaN(d.getTime()) ? String(iso) : d.toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
   }
+  function toWaUrl(phoneOrRecipient, text) {
+    var digits = String(phoneOrRecipient || "").replace(/\D/g, "");
+    if (digits.indexOf("0") === 0 && digits.length === 10) digits = "33" + digits.slice(1);
+    if (digits.indexOf("0033") === 0) digits = digits.slice(2);
+    if (!digits || digits.length < 9) digits = "33615144566";
+    var base = "https://api.whatsapp.com/send?phone=" + digits;
+    if (text) base += "&text=" + encodeURIComponent(text);
+    return base;
+  }
 
   var toastTimer = null;
   function note(msg) {
@@ -1209,6 +1218,7 @@
         '<button type="submit" class="btn btn-ocean" style="min-height:40px;padding:0.45rem 1rem;font-size:0.9rem">Enregistrer la fiche</button>' +
         '<button type="button" class="btn btn-ghost" id="btn-create-dossier-client" style="min-height:40px;padding:0.45rem 1rem;font-size:0.9rem">+ Créer un dossier</button>' +
         '<button type="button" class="btn btn-ghost" id="btn-msg-client" style="min-height:40px;padding:0.45rem 1rem;font-size:0.9rem">Envoyer un message</button>' +
+        (selected.phone ? '<a class="btn btn-night" href="' + esc(toWaUrl(selected.phone, "Bonjour " + (selected.name || "") + ", l\'équipe CARPEO vous contacte concernant votre demande.")) + '" target="_blank" rel="noopener" style="min-height:40px;padding:0.45rem 1rem;font-size:0.9rem;text-decoration:none">WhatsApp direct</a>' : '') +
         '<button type="button" class="mini" id="btn-del-contact" style="color:#b91c1c">Supprimer</button>' +
         '</div>' +
         '</form>' +
@@ -1393,15 +1403,21 @@
       (filtered.length ? filtered.map(function (c) {
         var chanClass = "chan-" + (c.channel || "email");
         var who = c.contact_name || c.recipient || c.contact_email || c.booking_ref || "Client";
-        var replyTarget = c.recipient || c.contact_email || c.contact_phone || who;
+        var replyTarget = c.contact_phone || c.recipient || c.contact_email || who;
+        var hasPhone = /\d{8,}/.test(String(c.contact_phone || c.recipient || "").replace(/\D/g, ""));
+        var waLink = hasPhone ? toWaUrl(c.contact_phone || c.recipient, "Bonjour " + (c.contact_name || "") + ", suite à votre message CARPEO : ") : "";
         return '<tr>' +
           '<td style="white-space:nowrap;font-size:0.84rem">' + fmtDateTime(c.created_at) + '</td>' +
           '<td><span class="chan-badge ' + chanClass + '">' + esc(c.channel) + '</span></td>' +
           '<td>' + (c.direction === "inbound" ? "<strong>↙ Entrant</strong>" : "↗ Sortant") + '</td>' +
-          '<td><strong>' + esc(who) + '</strong>' + (c.booking_ref ? '<br><small class="note">' + esc(c.booking_ref) + '</small>' : '') + '</td>' +
+          '<td><strong>' + esc(who) + '</strong>' +
+          (c.contact_email ? '<br><small class="note">' + esc(c.contact_email) + '</small>' : '') +
+          (c.contact_phone ? '<br><small class="note">' + esc(c.contact_phone) + '</small>' : '') +
+          (c.booking_ref ? '<br><small class="note">' + esc(c.booking_ref) + '</small>' : '') + '</td>' +
           '<td>' + (c.subject ? '<strong>' + esc(c.subject) + ' : </strong>' : '') + esc(c.body) + '</td>' +
           '<td style="white-space:nowrap"><span class="badge">' + esc(c.status) + '</span> ' +
-          '<button type="button" class="mini" data-reply-chan="' + esc(c.channel || "whatsapp") + '" data-reply-to="' + esc(replyTarget) + '" data-reply-ref="' + esc(c.booking_ref || c.subject || "") + '">Répondre</button>' +
+          '<button type="button" class="mini" data-reply-chan="' + esc(c.channel === "form" && hasPhone ? "whatsapp" : (c.channel === "form" ? "email" : (c.channel || "whatsapp"))) + '" data-reply-to="' + esc(replyTarget) + '" data-reply-ref="' + esc(c.booking_ref || c.subject || "") + '">Répondre</button>' +
+          (waLink ? ' <a class="mini" href="' + esc(waLink) + '" target="_blank" rel="noopener" style="color:#065f46;font-weight:700;text-decoration:none">WhatsApp ↗</a>' : '') +
           (c.direction === "inbound" && c.status === "reçu" ? ' <button type="button" class="mini" data-mark-read="' + c.id + '">Marquer lu</button>' : '') +
           '</td>' +
           '</tr>';
@@ -1439,17 +1455,31 @@
     if (form) {
       form.onsubmit = async function (e) {
         e.preventDefault();
+        var chan = document.getElementById("conv-channel").value;
+        var dir = document.getElementById("conv-dir").value;
+        var recip = document.getElementById("conv-recipient").value.trim();
+        var subj = document.getElementById("conv-subject").value.trim();
+        var msgBody = document.getElementById("conv-body").value.trim();
         await api("/api/admin/conversations", {
           method: "POST",
           body: {
-            channel: document.getElementById("conv-channel").value,
-            direction: document.getElementById("conv-dir").value,
-            recipient: document.getElementById("conv-recipient").value,
-            subject: document.getElementById("conv-subject").value,
-            body: document.getElementById("conv-body").value
+            channel: chan,
+            direction: dir,
+            recipient: recip,
+            subject: subj,
+            body: msgBody
           }
         });
-        note("Message enregistré dans la boîte de réception unifiée.");
+        if (dir === "outbound" && chan === "whatsapp") {
+          var waUrl = toWaUrl(recip, msgBody);
+          window.open(waUrl, "_blank", "noopener,noreferrer");
+          note("Message enregistré et ouvert dans WhatsApp pour envoi direct.");
+        } else if (dir === "outbound" && chan === "email" && recip.indexOf("@") !== -1) {
+          window.open("mailto:" + recip + "?subject=" + encodeURIComponent(subj || "CARPEO") + "&body=" + encodeURIComponent(msgBody), "_blank");
+          note("Message enregistré et prêt dans votre messagerie e-mail.");
+        } else {
+          note("Message enregistré dans la boîte de réception unifiée.");
+        }
         viewConversations();
       };
     }
@@ -1821,15 +1851,46 @@
   }
 
   // ============================================================================
-  // G. MARKETING, AUTOMATISATIONS & GESTION DES AVIS CLIENTS (§3.F)
+  // G. MARKETING, AUTOMATISATIONS, CODES PROMO, URSSAF & AVIS CLIENTS
   // ============================================================================
+  function getPromosStore() {
+    var def = [
+      { code: "BIENVENUE10", type: "pct", value: 10, minOrder: 0, expires: "2027-12-31", active: true, uses: 4 },
+      { code: "CARPEO20", type: "eur", value: 20, minOrder: 80, expires: "2027-12-31", active: true, uses: 2 },
+      { code: "FIDELITE15", type: "pct", value: 15, minOrder: 0, expires: "2027-12-31", active: true, uses: 5 },
+      { code: "NOEL2026", type: "pct", value: 10, minOrder: 0, expires: "2026-12-31", active: true, uses: 1 }
+    ];
+    try {
+      var raw = JSON.parse(localStorage.getItem("carpeo-promos-v1") || "null");
+      if (Array.isArray(raw) && raw.length) return raw;
+    } catch (e) {}
+    try { localStorage.setItem("carpeo-promos-v1", JSON.stringify(def)); } catch (e) {}
+    return def;
+  }
+  function savePromosStore(list) {
+    try { localStorage.setItem("carpeo-promos-v1", JSON.stringify(list)); } catch (e) {}
+  }
+
   async function viewMarketing() {
-    var [autoData, revData] = await Promise.all([
+    var [autoData, revData, bData] = await Promise.all([
       api("/api/admin/automations"),
-      api("/api/admin/reviews")
+      api("/api/admin/reviews"),
+      api("/api/admin/bookings")
     ]);
     var notifications = autoData.notifications || [];
     var reviews = revData.reviews || [];
+    var promos = getPromosStore();
+    var allBookings = bData.bookings || [];
+    var urssafBookings = allBookings.filter(function (b) { return b.advance === "oui" || b.type === "reservation"; });
+    var URSSAF_STATUSES = [
+      "Inscription à préparer",
+      "Inscription en attente",
+      "Activation en attente du client",
+      "Compte actif",
+      "Demande de paiement envoyée",
+      "Paiement validé Urssaf",
+      "Inscription refusée / Rejet"
+    ];
 
     var html =
       '<div class="grid-2" style="align-items:start;margin-bottom:1.25rem">' +
@@ -1853,6 +1914,25 @@
       }).join("") : '<tr><td colspan="5">Aucune notification en file.</td></tr>') +
       '</tbody></table></div></div>' +
 
+      '<div class="panel" style="margin-bottom:1.25rem">' +
+      '<h3>Gestion des Codes Promotionnels</h3>' +
+      '<p class="note">Créez et activez des codes promo utilisables immédiatement sur le calculateur de réservation en ligne.</p>' +
+      '<form id="promo-form" style="margin-bottom:0.85rem">' +
+      '<div class="grid-2">' +
+      '<div><label>Code promo</label><input id="pr-code" required placeholder="Ex: PRINTEMPS15" style="text-transform:uppercase"></div>' +
+      '<div><label>Type de remise</label><select id="pr-type"><option value="pct">Pourcentage (%)</option><option value="eur">Montant fixe (€)</option></select></div>' +
+      '<div><label>Valeur</label><input id="pr-val" type="number" min="1" required placeholder="15"></div>' +
+      '<div><label>Expiration</label><input id="pr-exp" type="date" value="2027-12-31"></div>' +
+      '</div>' +
+      '<button type="submit" class="btn btn-ocean" style="min-height:38px;font-size:0.88rem;width:100%">+ Créer / Mettre à jour le code promo</button>' +
+      '</form>' +
+      '<div class="table-wrap"><table><thead><tr><th>Code</th><th>Réduction</th><th>Expiration</th><th>Utilisations</th><th>Statut</th><th>Action</th></tr></thead><tbody>' +
+      promos.map(function (p, idx) {
+        return '<tr><td><strong>' + esc(p.code) + '</strong></td><td>' + (p.type === "pct" ? p.value + " %" : eur(p.value)) + '</td><td>' + esc(p.expires || "—") + '</td><td>' + (p.uses || 0) + '</td><td><span class="badge">' + (p.active !== false ? "Actif" : "Inactif") + '</span></td>' +
+          '<td><button type="button" class="mini" data-toggle-promo="' + idx + '">' + (p.active !== false ? "Désactiver" : "Activer") + '</button> <button type="button" class="mini" data-del-promo="' + idx + '" style="color:#b91c1c">Suppr.</button></td></tr>';
+      }).join("") +
+      '</tbody></table></div></div>' +
+
       '<div class="panel">' +
       '<h3>Importation &amp; Suivi des Leads Publicitaires</h3>' +
       '<p class="note">Importez un lead issu de vos campagnes Meta Ads, Google Ads ou Instagram pour suivre sa conversion jusqu’au chiffre d’affaires.</p>' +
@@ -1869,7 +1949,24 @@
       '</form></div>' +
       '</div>' +
 
-      // Gestion des avis clients et réponses
+      // Colonne droite : Suivi Urssaf Avance Immédiate (-50%) + Gestion des avis clients
+      '<div>' +
+      '<div class="panel" style="margin-bottom:1.25rem">' +
+      '<h3>Module Urssaf — Suivi Avance Immédiate (-50 %)</h3>' +
+      '<p class="note">Suivez l’inscription Urssaf (5 à 10 min à l’arrivée du technicien), l’activation du compte client et les demandes de paiement.</p>' +
+      '<div class="table-wrap"><table><thead><tr><th>Dossier / Client</th><th>Total</th><th>Statut Urssaf</th><th>Action</th></tr></thead><tbody>' +
+      (urssafBookings.length ? urssafBookings.map(function (b) {
+        var c = b.customer || {};
+        var uStat = b.urssaf_status || (b.status === "Terminé" ? "Paiement validé Urssaf" : "Inscription à préparer");
+        return '<tr><td><strong>' + esc(b.ref) + '</strong><br><small class="note">' + esc((c.prenom || "") + " " + (c.nom || "")) + '</small></td>' +
+          '<td>' + (b.total != null ? eur(b.total) : "Sur devis") + '</td>' +
+          '<td><select data-urssaf-id="' + b.id + '" style="margin:0;padding:0.25rem 0.45rem;font-size:0.8rem">' +
+          URSSAF_STATUSES.map(function (st) { return '<option' + (uStat === st ? ' selected' : '') + '>' + st + '</option>'; }).join("") +
+          '</select></td>' +
+          '<td>' + (c.tel ? '<a class="mini" href="' + esc(toWaUrl(c.tel, "Bonjour " + (c.prenom || "") + ", concernant votre avance immédiate de 50 % Urssaf pour le dossier " + b.ref + " : ")) + '" target="_blank" rel="noopener" style="text-decoration:none;color:#065f46;font-weight:700">WhatsApp</a>' : '—') + '</td></tr>';
+      }).join("") : '<tr><td colspan="4">Aucun dossier éligible.</td></tr>') +
+      '</tbody></table></div></div>' +
+
       '<div class="panel">' +
       '<h3>Gestion des avis clients &amp; réponses</h3>' +
       '<form id="review-form" style="margin-bottom:1rem;background:var(--mist);padding:0.85rem;border-radius:12px">' +
@@ -1897,9 +1994,65 @@
           '<button type="button" class="mini" data-rv-del="' + r.id + '">Suppr.</button>' +
           '</div></div>';
       }).join("") +
-      '</div></div></div>';
+      '</div></div></div></div>';
 
     renderShell(html);
+
+    var promoForm = document.getElementById("promo-form");
+    if (promoForm) {
+      promoForm.onsubmit = function (e) {
+        e.preventDefault();
+        var code = document.getElementById("pr-code").value.trim().toUpperCase().replace(/\s+/g, "");
+        var type = document.getElementById("pr-type").value;
+        var val = Math.max(1, Number(document.getElementById("pr-val").value) || 10);
+        var exp = document.getElementById("pr-exp").value;
+        var list = getPromosStore();
+        var existing = list.find(function (x) { return x.code === code; });
+        if (existing) {
+          existing.type = type;
+          existing.value = val;
+          existing.expires = exp;
+          existing.active = true;
+        } else {
+          list.unshift({ code: code, type: type, value: val, minOrder: 0, expires: exp, active: true, uses: 0 });
+        }
+        savePromosStore(list);
+        note("Code promotionnel " + code + " enregistré et actif sur le site.");
+        viewMarketing();
+      };
+    }
+    document.querySelectorAll("[data-toggle-promo]").forEach(function (btn) {
+      btn.onclick = function () {
+        var list = getPromosStore();
+        var item = list[Number(btn.dataset.togglePromo)];
+        if (item) {
+          item.active = item.active === false ? true : false;
+          savePromosStore(list);
+          viewMarketing();
+        }
+      };
+    });
+    document.querySelectorAll("[data-del-promo]").forEach(function (btn) {
+      btn.onclick = function () {
+        var list = getPromosStore();
+        list.splice(Number(btn.dataset.delPromo), 1);
+        savePromosStore(list);
+        note("Code promotionnel supprimé.");
+        viewMarketing();
+      };
+    });
+    document.querySelectorAll("[data-urssaf-id]").forEach(function (sel) {
+      sel.onchange = function () {
+        var bid = Number(sel.dataset.urssafId);
+        var st = getLocalStore();
+        var bk = (st.bookings || []).find(function (x) { return Number(x.id) === bid; });
+        if (bk) {
+          bk.urssaf_status = sel.value;
+          saveLocalStore(st);
+        }
+        note("Statut Urssaf mis à jour : " + sel.value);
+      };
+    });
 
     document.getElementById("run-automations").onclick = async function () {
       var res = await api("/api/admin/automations/run", { method: "POST" });

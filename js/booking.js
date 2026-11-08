@@ -63,6 +63,21 @@
   }
 
   var PROMOS = { BIENVENUE10: { type: "pct", value: 10 }, CARPEO20: { type: "eur", value: 20 }, FIDELITE15: { type: "pct", value: 15 }, NOEL2026: { type: "pct", value: 10 } };
+  function getActivePromos() {
+    var out = Object.assign({}, PROMOS);
+    try {
+      var custom = JSON.parse(localStorage.getItem("carpeo-promos-v1") || "null");
+      if (Array.isArray(custom)) {
+        out = {};
+        custom.forEach(function (p) {
+          if (p && p.code && p.active !== false) {
+            out[String(p.code).toUpperCase()] = { type: p.type === "eur" ? "eur" : "pct", value: Number(p.value) || 0 };
+          }
+        });
+      }
+    } catch (e) {}
+    return out;
+  }
   var state = { items: [blank()], step: 0, slot: "", calendarFrom: "", files: {}, promo: "", avance: "oui", promoMsg: "" };
 
   function el(html) {
@@ -239,7 +254,8 @@
   function quotePrice() {
     var base = total();
     var code = (state.promo || "").toUpperCase();
-    var promo = PROMOS[code];
+    var activePromos = getActivePromos();
+    var promo = activePromos[code];
     var off = 0;
     if (promo) off = promo.type === "pct" ? Math.round(base * promo.value) / 100 : Math.min(promo.value, base);
     var net = Math.round((base - off) * 100) / 100;

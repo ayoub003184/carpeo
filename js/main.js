@@ -117,13 +117,22 @@
       el.textContent = cfg.phone ? cfg.phone : "Numéro à confirmer";
     });
 
+    function buildWaUrl() {
+      var num = String(cfg.whatsapp || cfg.phone || "33615144566").replace(/\D/g, "");
+      if (num.indexOf("0") === 0 && num.length === 10) num = "33" + num.slice(1);
+      var msg = "Bonjour CARPEO, je souhaite obtenir un renseignement ou un devis pour le nettoyage de mes textiles.";
+      return "https://api.whatsapp.com/send?phone=" + (num || "33615144566") + "&text=" + encodeURIComponent(msg);
+    }
+
     function reach(kind) {
       if (kind === "phone" && cfg.phone) {
         window.location.href = "tel:" + cfg.phone.replace(/\s/g, "");
         return;
       }
-      if (kind === "wa" && cfg.whatsapp) {
-        window.open("https://wa.me/" + cfg.whatsapp.replace(/\D/g, ""), "_blank", "noopener");
+      if (kind === "wa") {
+        var waUrl = buildWaUrl();
+        var win = window.open(waUrl, "_blank", "noopener,noreferrer");
+        if (!win) window.location.href = waUrl;
         return;
       }
       var msg = kind === "wa"
@@ -141,7 +150,16 @@
       document.getElementById("reach-close").onclick = function () { box.remove(); };
     }
     document.querySelectorAll("[data-wa]").forEach(function (el) {
-      el.addEventListener("click", function () { reach("wa"); });
+      if (el.tagName === "A") {
+        el.setAttribute("href", buildWaUrl());
+        el.setAttribute("target", "_blank");
+        el.setAttribute("rel", "noopener noreferrer");
+      } else {
+        el.addEventListener("click", function (e) {
+          e.preventDefault();
+          reach("wa");
+        });
+      }
     });
     document.querySelectorAll("[data-call]").forEach(function (el) {
       if (cfg.phone && el.tagName === "A") el.setAttribute("href", "tel:" + cfg.phone.replace(/\s/g, ""));
