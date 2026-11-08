@@ -254,7 +254,7 @@ from auth.users
 where email is not null
 on conflict(id) do update set role = 'admin';
 
--- Initial Seed Data (idempotent: only inserts if bookings table is empty)
+-- Optional demo data is intentionally disabled in production.
 do $$
 declare
   b1_id bigint;
@@ -264,7 +264,7 @@ declare
   c1_id bigint;
   c2_id bigint;
 begin
-  if not exists (select 1 from public.carpeo_bookings limit 1) then
+  if false and not exists (select 1 from public.carpeo_bookings limit 1) then
     insert into public.carpeo_contacts(name,email,phone,address,city,postal_code,need,message,status,tags,notes,source)
     values
       ('Sophie Martin','sophie.martin@example.com','06 12 34 56 78','14 Rue de Rivoli','Paris','75004','Canapé 3 places + Tapis','Bonjour, je souhaite un nettoyage complet avant réception.','Client','VIP, Particulier','Cliente fidèle, code porte 4589A','Google Ads')
