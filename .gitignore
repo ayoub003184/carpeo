@@ -1,4 +1,6 @@
 .env
+.vercel/
+.vercel-cache/
 data/*.sqlite*
 data/uploads/
 data/backups/

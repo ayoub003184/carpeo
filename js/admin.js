@@ -1,7 +1,8 @@
 (function () {
   "use strict";
 
-  var csrf = "";
+  var csrf = sessionStorage.getItem("carpeo_admin_csrf") || "";
+  var adminToken = sessionStorage.getItem("carpeo_admin_token") || "";
   var currentUser = null;
   var activeTab = "dashboard";
   var viewHost = document.getElementById("admin-view");
@@ -29,10 +30,13 @@
     bookingMode: "kanban", // "kanban" | "list"
     bookingFilter: "all",
     bookingSearch: "",
+    prefillCustomer: null,
     smartList: "all",
     contactSearch: "",
     selectedContactId: null,
     convChannel: "all",
+    prefillRecipient: "",
+    prefillSubject: "",
     weekOffset: 0,
     selectedDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
     leafletMap: null
@@ -316,11 +320,18 @@
     }
     if (path === "/api/admin/conversations") {
       if (method === "POST") {
-        st.conversations.unshift({ id: Date.now(), channel: bodyObj.channel || "email", direction: bodyObj.direction || "outbound", recipient: bodyObj.recipient || "", subject: bodyObj.subject || "", body: bodyObj.body || "", status: "sent", created_at: new Date().toISOString() });
+        st.conversations.unshift({ id: Date.now(), channel: bodyObj.channel || "email", direction: bodyObj.direction || "outbound", recipient: bodyObj.recipient || "", subject: bodyObj.subject || "", body: bodyObj.body || "", status: bodyObj.direction === "inbound" ? "reçu" : "sent", created_at: new Date().toISOString() });
         saveLocalStore(st);
         return { ok: true };
       }
       return { conversations: st.conversations };
+    }
+    var mConv = /^\/api\/admin\/conversations\/(\d+)$/.exec(path);
+    if (mConv && method === "PATCH") {
+      var cv = st.conversations.find(function (x) { return Number(x.id) === Number(mConv[1]); });
+      if (cv) Object.assign(cv, bodyObj);
+      saveLocalStore(st);
+      return { ok: true };
     }
     if (path === "/api/admin/tasks") {
       if (method === "POST") {
@@ -363,7 +374,7 @@
     }
     if (path === "/api/admin/payments") {
       if (method === "POST") {
-        st.payments.unshift({ id: Date.now(), ref: bodyObj.ref || "CAR-DEMO", provider_id: "pi_local_" + Date.now(), kind: bodyObj.kind || "deposit", amount: Number(bodyObj.amount || 20), status: "paid", method: bodyObj.method || "stripe", created_at: new Date().toISOString() });
+        st.payments.unshift({ id: Date.now(), booking_ref: bodyObj.ref || "CAR-DEMO", ref: bodyObj.ref || "CAR-DEMO", provider_id: "pi_local_" + Date.now(), kind: bodyObj.kind || "deposit", amount: Number(bodyObj.amount || 20), status: "paid", method: bodyObj.method || "stripe", created_at: new Date().toISOString() });
         saveLocalStore(st);
         return { ok: true };
       }
@@ -395,7 +406,11 @@
       return { ok: true };
     }
     if (path === "/api/admin/automations") return { notifications: st.notifications };
-    if (path === "/api/admin/automations/run") return { ok: true, queued: 2, dispatched: 2 };
+    if (path === "/api/admin/automations/run") {
+      st.notifications.unshift({ id: Date.now(), kind: "reminder_j1", template: "reminder-j1", channel: "sms", status: "sent", send_at: new Date().toISOString(), booking_ref: "CAR-8F4A219B", payload: { ref: "CAR-8F4A219B" } });
+      saveLocalStore(st);
+      return { ok: true, queued: 2, dispatched: 2 };
+    }
     if (path === "/api/admin/pricing") {
       var p = window.CARPEO_PRICING ? window.CARPEO_PRICING.load() : { deposit: 20, items: {} };
       if (method === "PUT") {
@@ -438,6 +453,16 @@
       }
       return { users: st.users };
     }
+    var mUsr = /^\/api\/admin\/users\/([^/]+)$/.exec(path);
+    if (mUsr) {
+      if (method === "DELETE") st.users = st.users.filter(function (x) { return String(x.id) !== String(mUsr[1]); });
+      if (method === "PATCH") {
+        var us = st.users.find(function (x) { return String(x.id) === String(mUsr[1]); });
+        if (us) Object.assign(us, bodyObj);
+      }
+      saveLocalStore(st);
+      return { ok: true };
+    }
     if (path === "/api/admin/audit") return { audit: st.audit };
     if (path === "/api/admin/backup") return { file: "sauvegarde-locale-carpeo.json" };
     if (path === "/api/admin/seed") {
@@ -454,12 +479,11 @@
     options = options || {};
     var origBody = options.body;
     options.headers = Object.assign({ Accept: "application/json" }, options.headers || {});
+    if (adminToken) options.headers["X-Admin-Token"] = adminToken;
+    if (csrf) options.headers["X-CSRF-Token"] = csrf;
     if (options.body && typeof options.body !== "string") {
       options.headers["Content-Type"] = "application/json";
       options.body = JSON.stringify(options.body);
-    }
-    if (!/^GET|HEAD$/.test(options.method || "GET") && csrf) {
-      options.headers["X-CSRF-Token"] = csrf;
     }
     try {
       var r = await fetch(url, options);
@@ -477,12 +501,68 @@
     }
   }
 
+  function triggerDownload(filename, content, mime) {
+    var blob = new Blob([content], { type: mime });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 250);
+  }
+
+  async function downloadCsv() {
+    var d = await api("/api/admin/bookings");
+    var rows = d.bookings || [];
+    var csv = [
+      "reference,type,statut,nom,prenom,email,telephone,adresse,code_postal,ville,creneau,total,acompte,solde,devis_montant,tags,cree_le"
+    ].concat(rows.map(function (r) {
+      var c = r.customer || {};
+      return [r.ref, r.type, r.status, c.nom, c.prenom, c.email, c.tel, c.adresse, c.cp, c.ville, r.slot, r.total, r.deposit, r.balance, r.quote_amount, r.tags, r.created_at]
+        .map(function (v) { return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"'; }).join(",");
+    })).join("\r\n");
+    triggerDownload("carpeo-dossiers.csv", "\uFEFF" + csv, "text/csv;charset=utf-8");
+    note("Export CSV téléchargé (" + rows.length + " dossiers).");
+  }
+
+  async function downloadIcs() {
+    var d = await api("/api/admin/bookings");
+    var rows = (d.bookings || []).filter(function (r) { return r.slot && r.status !== "Annulé"; });
+    var lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//CARPEO//Planning//FR", "X-WR-CALNAME:CARPEO Interventions"];
+    rows.forEach(function (row) {
+      var c = row.customer || {};
+      var cleanSlot = String(row.slot || "").replace(/[-: ]/g, "");
+      var start = cleanSlot.slice(0, 8) + "T" + (cleanSlot.slice(8, 12) || "0800") + "00";
+      var endHour = String(Math.min(22, Number(cleanSlot.slice(8, 10) || 8) + 2)).padStart(2, "0");
+      var end = cleanSlot.slice(0, 8) + "T" + endHour + (cleanSlot.slice(10, 12) || "00") + "00";
+      lines.push(
+        "BEGIN:VEVENT",
+        "UID:" + row.ref + "@carpeo.fr",
+        "DTSTART:" + start,
+        "DTEND:" + end,
+        "SUMMARY:CARPEO [" + row.status + "] - " + (c.prenom || "") + " " + (c.nom || "Client"),
+        "DESCRIPTION:" + String(row.notes || "").replace(/\r?\n/g, " ") + " - Tel: " + (c.tel || ""),
+        "LOCATION:" + [c.adresse, c.cp, c.ville].filter(Boolean).join(" "),
+        "END:VEVENT"
+      );
+    });
+    lines.push("END:VCALENDAR");
+    triggerDownload("carpeo-planning.ics", lines.join("\r\n"), "text/calendar;charset=utf-8");
+    note("Planning .ics exporté (" + rows.length + " interventions).");
+  }
+
   function renderShell(html) {
     if (ui.leafletMap) {
       try { ui.leafletMap.remove(); } catch (e) {}
       ui.leafletMap = null;
     }
     viewHost.innerHTML = html;
+    viewHost.querySelectorAll('a[href="/api/admin/export.csv"]').forEach(function (a) {
+      a.onclick = function (e) { e.preventDefault(); downloadCsv(); };
+    });
+    viewHost.querySelectorAll('a[href="/api/admin/calendar.ics"]').forEach(function (a) {
+      a.onclick = function (e) { e.preventDefault(); downloadIcs(); };
+    });
   }
 
   // ============================================================================
@@ -524,26 +604,41 @@
       '</div>' +
 
       '<div class="grid-2" style="align-items:stretch;margin-bottom:1.25rem">' +
-      // Graphique 1 : Entonnoir Pipeline 7 étapes
+      // Graphique 1 : Entonnoir Pipeline 7 étapes (interactif)
       '<div class="panel">' +
       '<h3>Pipeline commercial (7 étapes)</h3>' +
-      '<p class="note">Répartition dynamique des dossiers par statut d’avancement.</p>' +
+      '<p class="note">Cliquez sur une étape pour filtrer les dossiers correspondants.</p>' +
       '<div class="pipeline-chart">' +
       (d.counts || []).map(function (x) {
         var pct = Math.max(4, Math.round((x.count / maxPipe) * 100));
-        return '<div><span>' + esc(x.status) + '</span><i style="width:' + pct + '%"></i><strong>' + x.count + '</strong></div>';
+        return '<div data-pipe-stage="' + esc(x.status) + '" style="cursor:pointer" title="Voir les dossiers : ' + esc(x.status) + '"><span>' + esc(x.status) + '</span><i style="width:' + pct + '%"></i><strong>' + x.count + '</strong></div>';
       }).join("") +
       '</div></div>' +
 
-      // Graphique 2 : Répartition par prestation textile
+      // Graphique 2 : Répartition par prestation textile + Suivi financier
       '<div class="panel">' +
-      '<h3>Volume par famille de textile</h3>' +
-      '<p class="note">Articles traités dans les réservations et demandes de devis.</p>' +
+      '<h3>Volume par famille de textile &amp; Trésorerie</h3>' +
+      '<p class="note">Articles traités et répartition financière des encaissements.</p>' +
       '<div class="pipeline-chart">' +
       ((d.serviceBreakdown && d.serviceBreakdown.length) ? d.serviceBreakdown.map(function (s) {
         var pct = Math.max(6, Math.round((s.count / maxCat) * 100));
         return '<div><span style="text-transform:capitalize">' + esc(s.category) + '</span><i style="width:' + pct + '%"></i><strong>' + s.count + '</strong></div>';
       }).join("") : '<p class="note">Aucune prestation enregistrée sur cette période.</p>') +
+      '</div>' +
+      '<hr style="border:0;border-top:1px solid var(--line);margin:0.9rem 0">' +
+      '<div class="pipeline-chart">' +
+      (function () {
+        var maxFin = Math.max(d.money.revenue || 1, d.money.collected || 1, d.money.balances || 1, 1);
+        return [
+          ["CA Confirmé", d.money.revenue],
+          ["Encaissé", d.money.collected],
+          ["Acomptes", d.money.deposits],
+          ["Soldes dus", d.money.balances]
+        ].map(function (row) {
+          var p = Math.max(4, Math.round(((row[1] || 0) / maxFin) * 100));
+          return '<div><span>' + row[0] + '</span><i style="width:' + p + '%"></i><strong>' + eur(row[1]) + '</strong></div>';
+        }).join("");
+      })() +
       '</div></div>' +
       '</div>' +
 
@@ -551,6 +646,7 @@
       '<div class="panel">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">' +
       '<div><h3>Attribution Marketing &amp; Campagnes Publicitaires</h3><p class="note">Suivi de bout en bout : Source / Campagne → Leads → Dossiers confirmés → Chiffre d’affaires (GA4, Meta Pixel, CAPI, Google Ads).</p></div>' +
+      '<button type="button" class="pill is-on" data-goto="marketing">Gérer les campagnes &amp; leads →</button>' +
       '</div>' +
       '<div class="table-wrap"><table><thead><tr><th>Canal / Campagne</th><th>Leads générés</th><th>Dossiers signés</th><th>Conversion</th><th>Chiffre d’affaires attribué</th></tr></thead><tbody>' +
       ((d.attribution && d.attribution.length) ? d.attribution.map(function (a) {
@@ -566,6 +662,14 @@
     });
     document.querySelectorAll("[data-goto]").forEach(function (box) {
       box.onclick = function () { showTab(box.dataset.goto); };
+    });
+    document.querySelectorAll("[data-pipe-stage]").forEach(function (row) {
+      row.onclick = function () {
+        ui.bookingFilter = "all";
+        ui.bookingSearch = row.dataset.pipeStage;
+        ui.bookingMode = "list";
+        showTab("bookings");
+      };
     });
     var seedBtn = document.getElementById("btn-seed");
     if (seedBtn) {
@@ -600,6 +704,10 @@
       return true;
     });
 
+    var pf = ui.prefillCustomer || {};
+    var showNewForm = Boolean(ui.prefillCustomer);
+    ui.prefillCustomer = null;
+
     var toolbar =
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem">' +
       '<div class="Subtle-pills" style="margin:0">' +
@@ -608,6 +716,7 @@
       '</div>' +
       '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">' +
       '<input id="booking-search" placeholder="Rechercher réf, client, ville…" value="' + esc(ui.bookingSearch) + '" style="margin:0;width:230px;padding:0.48rem 0.75rem">' +
+      (ui.bookingSearch ? '<button type="button" class="pill" id="clear-booking-search">Réinitialiser</button>' : '') +
       '<button type="button" class="btn btn-ocean" id="toggle-new-booking" style="min-height:40px;padding:0.45rem 0.9rem;font-size:0.9rem">+ Nouveau dossier / devis</button>' +
       '</div></div>' +
 
@@ -625,20 +734,20 @@
       '</div>' +
 
       // Formulaire création rapide d'un dossier / devis
-      '<form id="new-booking-form" class="panel" hidden style="margin-bottom:1.25rem">' +
+      '<form id="new-booking-form" class="panel" ' + (showNewForm ? '' : 'hidden') + ' style="margin-bottom:1.25rem">' +
       '<h3>Créer un dossier ou un devis personnalisé</h3>' +
       '<div class="grid-3">' +
-      '<div><label>Prénom</label><input id="nb-prenom" required></div>' +
-      '<div><label>Nom</label><input id="nb-nom" required></div>' +
-      '<div><label>Téléphone</label><input id="nb-tel" required></div>' +
-      '<div><label>E-mail</label><input id="nb-email" type="email" required></div>' +
-      '<div><label>Adresse</label><input id="nb-adresse" required></div>' +
-      '<div><label>Code postal &amp; Ville</label><div style="display:grid;grid-template-columns:100px 1fr;gap:0.4rem"><input id="nb-cp" placeholder="75001" required><input id="nb-ville" placeholder="Ville" required></div></div>' +
+      '<div><label>Prénom</label><input id="nb-prenom" value="' + esc(pf.prenom || "") + '" required></div>' +
+      '<div><label>Nom</label><input id="nb-nom" value="' + esc(pf.nom || "") + '" required></div>' +
+      '<div><label>Téléphone</label><input id="nb-tel" value="' + esc(pf.tel || "") + '" required></div>' +
+      '<div><label>E-mail</label><input id="nb-email" type="email" value="' + esc(pf.email || "") + '" required></div>' +
+      '<div><label>Adresse</label><input id="nb-adresse" value="' + esc(pf.adresse || "") + '" required></div>' +
+      '<div><label>Code postal &amp; Ville</label><div style="display:grid;grid-template-columns:100px 1fr;gap:0.4rem"><input id="nb-cp" value="' + esc(pf.cp || "") + '" placeholder="75001" required><input id="nb-ville" value="' + esc(pf.ville || "") + '" placeholder="Ville" required></div></div>' +
       '<div><label>Type de dossier</label><select id="nb-type"><option value="reservation">Réservation</option><option value="devis">Devis personnalisé</option></select></div>' +
       '<div><label>Prestation principale</label><select id="nb-cat"><option value="canape">Canapé</option><option value="matelas">Matelas</option><option value="tapis">Tapis</option><option value="moquette">Moquette</option><option value="fauteuil">Fauteuil</option><option value="chaise">Chaises</option><option value="coussin">Coussins</option></select></div>' +
       '<div><label>Créneau (si connu)</label><input id="nb-slot" placeholder="AAAA-MM-JJ HH:MM"></div>' +
       '<div><label>Montant (€)</label><input id="nb-total" type="number" min="0" step="0.01" placeholder="Calcul auto si vide"></div>' +
-      '<div><label>Étiquettes (Tags)</label><input id="nb-tags" placeholder="Particulier, Urgent…"></div>' +
+      '<div><label>Étiquettes (Tags)</label><input id="nb-tags" value="' + esc(pf.tags || "") + '" placeholder="Particulier, Urgent…"></div>' +
       '<div><label>Notes</label><input id="nb-notes" placeholder="Détails taches, accès…"></div>' +
       '</div>' +
       '<button class="btn btn-ocean" type="submit" style="min-height:42px;font-size:0.95rem">Créer le dossier</button>' +
@@ -678,7 +787,7 @@
               '<select data-quick-stage="' + b.id + '" style="margin:0;padding:0.25rem 0.4rem;font-size:0.78rem;width:auto">' +
               ALL_STATUSES.map(function (s) { return '<option' + (s === b.status ? ' selected' : '') + '>' + s + '</option>'; }).join("") +
               '</select>' +
-              '<button type="button" class="mini" data-inspect="' + b.id + '" style="font-size:0.78rem">Détails</button>' +
+              '<button type="button" class="mini" data-inspect="' + esc(b.ref) + '" style="font-size:0.78rem">Détails</button>' +
               '</div>' +
               '</article>';
           }).join("") +
@@ -702,7 +811,7 @@
 
         return '<article class="panel">' +
           '<div style="display:flex;justify-content:space-between;align-items:center">' +
-          '<span class="sur" style="margin:0">' + esc(b.ref) + ' · ' + esc(b.type.toUpperCase()) + '</span>' +
+          '<span class="sur" style="margin:0">' + esc(b.ref) + ' · ' + esc((b.type || "reservation").toUpperCase()) + '</span>' +
           '<span class="badge" style="margin:0">' + esc(b.status) + '</span>' +
           '</div>' +
           '<h3 style="margin-top:0.3rem">' + esc(c.prenom) + ' ' + esc(c.nom) + '</h3>' +
@@ -712,7 +821,7 @@
           '<ul style="font-size:0.88rem;padding-left:1.1rem;margin:0.4rem 0">' + itemsList + '</ul>' +
           photosHtml +
           '<p style="font-size:0.9rem;margin:0.4rem 0"><strong>Total :</strong> ' + (b.total != null ? eur(b.total) : "Sur devis") +
-          ' · <strong>Acompte :</strong> ' + (b.deposit != null ? eur(b.deposit) : "—") +
+          ' · <strong>Acompte :</strong> ' + (b.deposit != null ? eur(b.deposit) : "20 €") +
           ' · <strong>Solde :</strong> ' + (b.balance != null ? eur(b.balance) : "—") + '</p>' +
           '<div class="grid-2">' +
           '<div><label>Étape du pipeline</label><select data-status="' + b.id + '">' +
@@ -729,6 +838,8 @@
           '<button type="button" class="btn btn-ocean" data-save="' + b.id + '" style="min-height:40px;padding:0.45rem 0.9rem;font-size:0.9rem">Enregistrer</button>' +
           '<button type="button" class="btn btn-ghost" data-send-quote-card="' + b.id + '" style="min-height:40px;padding:0.45rem 0.9rem;font-size:0.9rem">Chiffrer &amp; Envoyer devis</button>' +
           '<button type="button" class="btn btn-night" data-convert-card="' + b.id + '" style="min-height:40px;padding:0.45rem 0.9rem;font-size:0.9rem">Convertir en intervention</button>' +
+          '<a class="pill" href="suivi.html?ref=' + encodeURIComponent(b.ref) + '" target="_blank" style="text-decoration:none">Espace suivi</a>' +
+          '<button type="button" class="mini" data-del-booking="' + b.id + '" style="color:#b91c1c">Supprimer</button>' +
           '</div>' +
           '</article>';
       }).join("") + '</div>';
@@ -739,6 +850,8 @@
     // Events
     document.getElementById("mode-kanban").onclick = function () { ui.bookingMode = "kanban"; viewBookings(); };
     document.getElementById("mode-list").onclick = function () { ui.bookingMode = "list"; viewBookings(); };
+    var clearSearch = document.getElementById("clear-booking-search");
+    if (clearSearch) clearSearch.onclick = function () { ui.bookingSearch = ""; viewBookings(); };
     document.querySelectorAll("[data-bfilter]").forEach(function (btn) {
       btn.onclick = function () { ui.bookingFilter = btn.dataset.bfilter; viewBookings(); };
     });
@@ -832,6 +945,7 @@
     });
     document.querySelectorAll("[data-inspect]").forEach(function (btn) {
       btn.onclick = function () {
+        ui.bookingSearch = btn.dataset.inspect || "";
         ui.bookingMode = "list";
         viewBookings();
       };
@@ -872,6 +986,13 @@
         var qVal = document.querySelector('[data-quote="' + id + '"]').value;
         await api("/api/admin/bookings/" + id, { method: "PATCH", body: { slot: slot, quoteAmount: qVal, action: "convertToIntervention" } });
         note("Dossier converti en intervention planifiée.");
+        viewBookings();
+      };
+    });
+    document.querySelectorAll("[data-del-booking]").forEach(function (btn) {
+      btn.onclick = async function () {
+        await api("/api/admin/bookings/" + btn.dataset.delBooking, { method: "DELETE" });
+        note("Dossier supprimé.");
         viewBookings();
       };
     });
@@ -980,7 +1101,9 @@
         '<textarea id="ec-notes" style="min-height:80px">' + esc(selected.notes) + '</textarea>' +
         '<div class="btn-row" style="margin-top:0.5rem">' +
         '<button type="submit" class="btn btn-ocean" style="min-height:40px;padding:0.45rem 1rem;font-size:0.9rem">Enregistrer la fiche</button>' +
+        '<button type="button" class="btn btn-ghost" id="btn-create-dossier-client" style="min-height:40px;padding:0.45rem 1rem;font-size:0.9rem">+ Créer un dossier</button>' +
         '<button type="button" class="btn btn-ghost" id="btn-msg-client" style="min-height:40px;padding:0.45rem 1rem;font-size:0.9rem">Envoyer un message</button>' +
+        '<button type="button" class="mini" id="btn-del-contact" style="color:#b91c1c">Supprimer</button>' +
         '</div>' +
         '</form>' +
 
@@ -1056,8 +1179,40 @@
         viewContacts();
       };
     }
+    var btnCreateDossier = document.getElementById("btn-create-dossier-client");
+    if (btnCreateDossier && selected) {
+      btnCreateDossier.onclick = function () {
+        var parts = String(selected.name || "").trim().split(/\s+/);
+        ui.prefillCustomer = {
+          prenom: parts[0] || "",
+          nom: parts.slice(1).join(" ") || parts[0] || "",
+          email: selected.email || "",
+          tel: selected.phone || "",
+          adresse: selected.address || "",
+          cp: selected.postal_code || "",
+          ville: selected.city || "",
+          tags: selected.tags || ""
+        };
+        showTab("bookings");
+      };
+    }
     var btnMsg = document.getElementById("btn-msg-client");
-    if (btnMsg) btnMsg.onclick = function () { showTab("conversations"); };
+    if (btnMsg && selected) {
+      btnMsg.onclick = function () {
+        ui.prefillRecipient = selected.email || selected.phone || "";
+        ui.prefillSubject = "Suivi CARPEO — " + (selected.name || "");
+        showTab("conversations");
+      };
+    }
+    var btnDelContact = document.getElementById("btn-del-contact");
+    if (btnDelContact && selected) {
+      btnDelContact.onclick = async function () {
+        await api("/api/admin/contacts/" + selected.id, { method: "DELETE" });
+        ui.selectedContactId = null;
+        note("Contact supprimé.");
+        viewContacts();
+      };
+    }
   }
 
   // ============================================================================
@@ -1071,6 +1226,11 @@
       if (ui.convChannel !== "all" && c.channel !== ui.convChannel) return false;
       return true;
     });
+
+    var preRecip = ui.prefillRecipient || "";
+    var preSubj = ui.prefillSubject || "";
+    ui.prefillRecipient = "";
+    ui.prefillSubject = "";
 
     var html =
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem">' +
@@ -1092,6 +1252,11 @@
       '<div class="panel">' +
       '<h3>Nouveau message / Enregistrer échange</h3>' +
       '<p class="note">Centralisez vos échanges E-mail, SMS, WhatsApp et Instagram DM.</p>' +
+      '<div class="Subtle-pills" style="margin:0 0 0.75rem">' +
+      '<button type="button" class="pill" data-tpl="Bonjour, nous vous confirmons votre rendez-vous CARPEO. Notre technicien vous contactera 30 min avant son arrivée.">Modèle : Confirmation RDV</button>' +
+      '<button type="button" class="pill" data-tpl="Bonjour, votre devis personnalisé CARPEO est disponible dans votre espace suivi en ligne. N’hésitez pas si vous avez des questions !">Modèle : Relance devis</button>' +
+      '<button type="button" class="pill" data-tpl="Bonjour, l’acompte de réservation est de 20 €. Vous pouvez le régler directement depuis votre espace suivi CARPEO.">Modèle : Acompte 20 €</button>' +
+      '</div>' +
       '<form id="conv-form">' +
       '<label for="conv-channel">Canal de communication</label>' +
       '<select id="conv-channel">' +
@@ -1107,9 +1272,9 @@
       '<option value="inbound">Entrant (Message reçu du client)</option>' +
       '</select>' +
       '<label for="conv-recipient">Destinataire / Contact (E-mail, Tél ou @Instagram)</label>' +
-      '<input id="conv-recipient" placeholder="ex. sophie.martin@example.fr ou 06 12 34 56 78" required>' +
+      '<input id="conv-recipient" value="' + esc(preRecip) + '" placeholder="ex. sophie.martin@example.fr ou 06 12 34 56 78" required>' +
       '<label for="conv-subject">Objet / Référence dossier</label>' +
-      '<input id="conv-subject" placeholder="Confirmation RDV CARPEO">' +
+      '<input id="conv-subject" value="' + esc(preSubj) + '" placeholder="Confirmation RDV CARPEO">' +
       '<label for="conv-body">Contenu du message</label>' +
       '<textarea id="conv-body" required placeholder="Votre message…"></textarea>' +
       '<button type="submit" class="btn btn-ocean" style="width:100%;min-height:42px;font-size:0.95rem">Envoyer / Enregistrer dans la boîte unifiée</button>' +
@@ -1118,17 +1283,21 @@
       // Colonne droite : flux unifié des conversations
       '<div class="panel">' +
       '<h3>Boîte de réception unifiée (' + filtered.length + ' messages)</h3>' +
-      '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Canal</th><th>Sens</th><th>Client / Destinataire</th><th>Message</th><th>Statut</th></tr></thead><tbody>' +
+      '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Canal</th><th>Sens</th><th>Client / Destinataire</th><th>Message</th><th>Statut / Action</th></tr></thead><tbody>' +
       (filtered.length ? filtered.map(function (c) {
         var chanClass = "chan-" + (c.channel || "email");
         var who = c.contact_name || c.recipient || c.contact_email || c.booking_ref || "Client";
+        var replyTarget = c.recipient || c.contact_email || c.contact_phone || who;
         return '<tr>' +
           '<td style="white-space:nowrap;font-size:0.84rem">' + fmtDateTime(c.created_at) + '</td>' +
           '<td><span class="chan-badge ' + chanClass + '">' + esc(c.channel) + '</span></td>' +
           '<td>' + (c.direction === "inbound" ? "<strong>↙ Entrant</strong>" : "↗ Sortant") + '</td>' +
           '<td><strong>' + esc(who) + '</strong>' + (c.booking_ref ? '<br><small class="note">' + esc(c.booking_ref) + '</small>' : '') + '</td>' +
           '<td>' + (c.subject ? '<strong>' + esc(c.subject) + ' : </strong>' : '') + esc(c.body) + '</td>' +
-          '<td><span class="badge">' + esc(c.status) + '</span></td>' +
+          '<td style="white-space:nowrap"><span class="badge">' + esc(c.status) + '</span> ' +
+          '<button type="button" class="mini" data-reply-chan="' + esc(c.channel || "whatsapp") + '" data-reply-to="' + esc(replyTarget) + '" data-reply-ref="' + esc(c.booking_ref || c.subject || "") + '">Répondre</button>' +
+          (c.direction === "inbound" && c.status === "reçu" ? ' <button type="button" class="mini" data-mark-read="' + c.id + '">Marquer lu</button>' : '') +
+          '</td>' +
           '</tr>';
       }).join("") : '<tr><td colspan="6">Aucun message pour ce canal.</td></tr>') +
       '</tbody></table></div></div></div>';
@@ -1137,6 +1306,28 @@
 
     document.querySelectorAll("[data-chan]").forEach(function (btn) {
       btn.onclick = function () { ui.convChannel = btn.dataset.chan; viewConversations(); };
+    });
+    document.querySelectorAll("[data-tpl]").forEach(function (btn) {
+      btn.onclick = function () {
+        var box = document.getElementById("conv-body");
+        if (box) box.value = btn.dataset.tpl;
+      };
+    });
+    document.querySelectorAll("[data-reply-to]").forEach(function (btn) {
+      btn.onclick = function () {
+        document.getElementById("conv-channel").value = btn.dataset.replyChan || "whatsapp";
+        document.getElementById("conv-dir").value = "outbound";
+        document.getElementById("conv-recipient").value = btn.dataset.replyTo || "";
+        document.getElementById("conv-subject").value = btn.dataset.replyRef ? ("Re: " + btn.dataset.replyRef) : "Réponse CARPEO";
+        document.getElementById("conv-body").focus();
+      };
+    });
+    document.querySelectorAll("[data-mark-read]").forEach(function (btn) {
+      btn.onclick = async function () {
+        await api("/api/admin/conversations/" + btn.dataset.markRead, { method: "PATCH", body: { status: "lu" } });
+        note("Message marqué comme lu.");
+        viewConversations();
+      };
     });
     var form = document.getElementById("conv-form");
     if (form) {
@@ -1491,8 +1682,9 @@
 
     var html =
       '<div class="grid-2" style="align-items:start;margin-bottom:1.25rem">' +
-      // Scénarios d'automatisation
-      '<div class="panel">' +
+      // Scénarios d'automatisation + Importation de Leads Publicitaires (§3.F & §5)
+      '<div>' +
+      '<div class="panel" style="margin-bottom:1.25rem">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem">' +
       '<h3>Scénarios d’automatisation Marketing</h3>' +
       '<button type="button" class="btn btn-ocean" id="run-automations" style="min-height:38px;padding:0.4rem 0.85rem;font-size:0.88rem">Exécuter les relances maintenant</button>' +
@@ -1504,10 +1696,27 @@
       '</ul>' +
       '<div class="table-wrap"><table><thead><tr><th>Échéance</th><th>Scénario</th><th>Dossier</th><th>Canal</th><th>Statut</th></tr></thead><tbody>' +
       (notifications.length ? notifications.map(function (n) {
-        var label = n.template === "reminder-j1" ? "Rappel intervention J-1" : n.template === "quote-followup" ? "Relance devis en attente" : "Demande d'avis après prestation";
-        return '<tr><td style="font-size:0.84rem">' + fmtDateTime(n.send_at) + '</td><td><strong>' + label + '</strong></td><td>' + esc(n.booking_ref || "#" + n.booking_id) + '</td><td>' + esc(n.channel) + '</td><td><span class="badge">' + esc(n.status) + '</span></td></tr>';
+        var k = n.kind || n.template || "";
+        var label = (k.indexOf("reminder") !== -1 || k.indexOf("j-1") !== -1) ? "Rappel intervention J-1" : (k.indexOf("quote") !== -1 ? "Relance devis en attente" : "Demande d'avis après prestation");
+        return '<tr><td style="font-size:0.84rem">' + fmtDateTime(n.send_at) + '</td><td><strong>' + label + '</strong></td><td>' + esc(n.booking_ref || (n.payload && n.payload.ref) || "#" + n.booking_id) + '</td><td>' + esc(n.channel) + '</td><td><span class="badge">' + esc(n.status) + '</span></td></tr>';
       }).join("") : '<tr><td colspan="5">Aucune notification en file.</td></tr>') +
       '</tbody></table></div></div>' +
+
+      '<div class="panel">' +
+      '<h3>Importation &amp; Suivi des Leads Publicitaires</h3>' +
+      '<p class="note">Importez un lead issu de vos campagnes Meta Ads, Google Ads ou Instagram pour suivre sa conversion jusqu’au chiffre d’affaires.</p>' +
+      '<form id="lead-import-form">' +
+      '<div class="grid-2">' +
+      '<div><label>Nom du prospect</label><input id="li-name" required placeholder="Ex: Julien Mercier"></div>' +
+      '<div><label>E-mail</label><input id="li-email" type="email" required placeholder="julien@example.fr"></div>' +
+      '<div><label>Téléphone</label><input id="li-phone" placeholder="06 11 22 33 44"></div>' +
+      '<div><label>Campagne / Source</label><select id="li-source"><option value="Meta Ads">Meta Ads (Facebook / Instagram)</option><option value="Google Ads">Google Ads (Search / Local)</option><option value="Instagram">Instagram Organique / DM</option><option value="Google">Google Maps / SEO</option></select></div>' +
+      '</div>' +
+      '<label>Besoin textile / Campagne associée</label>' +
+      '<input id="li-need" placeholder="Ex: Canapé d’angle + Tapis — Campagne Promo -50%">' +
+      '<button type="submit" class="btn btn-night" style="min-height:40px;font-size:0.9rem;width:100%">Importer le lead dans le CRM</button>' +
+      '</form></div>' +
+      '</div>' +
 
       // Gestion des avis clients et réponses
       '<div class="panel">' +
@@ -1546,6 +1755,27 @@
       note("Scénarios exécutés (" + res.dispatched + " notifications traitées).");
       viewMarketing();
     };
+    var leadForm = document.getElementById("lead-import-form");
+    if (leadForm) {
+      leadForm.onsubmit = async function (e) {
+        e.preventDefault();
+        await api("/api/admin/contacts", {
+          method: "POST",
+          body: {
+            name: document.getElementById("li-name").value,
+            email: document.getElementById("li-email").value,
+            phone: document.getElementById("li-phone").value,
+            source: document.getElementById("li-source").value,
+            tags: "Lead Publicitaire, " + document.getElementById("li-source").value,
+            need: document.getElementById("li-need").value,
+            notes: "Lead importé depuis campagne " + document.getElementById("li-source").value + " : " + document.getElementById("li-need").value,
+            status: "Nouveau"
+          }
+        });
+        note("Lead publicitaire importé dans le CRM avec attribution source.");
+        leadForm.reset();
+      };
+    }
     document.getElementById("review-form").onsubmit = async function (e) {
       e.preventDefault();
       await api("/api/admin/reviews", {
@@ -1642,9 +1872,15 @@
       '</div>' +
       '<button class="btn btn-night" type="submit">Créer le compte utilisateur</button>' +
       '</form>' +
-      '<div class="table-wrap" style="margin-top:0.8rem"><table><thead><tr><th>Nom</th><th>E-mail</th><th>Profil</th></tr></thead><tbody>' +
+      '<div class="table-wrap" style="margin-top:0.8rem"><table><thead><tr><th>Nom</th><th>E-mail</th><th>Profil</th><th>Action</th></tr></thead><tbody>' +
       (uData.users || []).map(function (x) {
-        return '<tr><td><strong>' + esc(x.name) + '</strong></td><td>' + esc(x.email) + '</td><td><span class="badge">' + esc(x.role) + '</span></td></tr>';
+        return '<tr><td><strong>' + esc(x.name) + '</strong></td><td>' + esc(x.email) + '</td>' +
+          '<td><select data-user-role="' + esc(x.id) + '" style="margin:0;padding:0.25rem 0.5rem;width:auto">' +
+          [["admin", "Administrateur"], ["team", "Équipe"], ["readonly", "Lecture seule"]].map(function (r) {
+            return '<option value="' + r[0] + '"' + (x.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
+          }).join("") +
+          '</select></td>' +
+          '<td><button type="button" class="mini" data-del-user="' + esc(x.id) + '">Supprimer</button></td></tr>';
       }).join("") +
       '</tbody></table></div></div>' +
       '</div></div>' +
@@ -1708,6 +1944,19 @@
       note("Nouvel utilisateur créé.");
       viewSettings();
     };
+    document.querySelectorAll("[data-user-role]").forEach(function (sel) {
+      sel.onchange = async function () {
+        await api("/api/admin/users/" + sel.dataset.userRole, { method: "PATCH", body: { role: sel.value } });
+        note("Rôle utilisateur mis à jour.");
+      };
+    });
+    document.querySelectorAll("[data-del-user]").forEach(function (btn) {
+      btn.onclick = async function () {
+        await api("/api/admin/users/" + btn.dataset.delUser, { method: "DELETE" });
+        note("Utilisateur supprimé.");
+        viewSettings();
+      };
+    });
   }
 
   // ============================================================================
@@ -1740,11 +1989,22 @@
   async function enter() {
     try {
       var me = await api("/api/auth/me");
-      csrf = me.csrf;
+      if (me.csrf) {
+        csrf = me.csrf;
+        try { sessionStorage.setItem("carpeo_admin_csrf", csrf); } catch (e) {}
+      }
       currentUser = me.user;
       loginPanel.hidden = true;
       app.hidden = false;
-      if (quickBar) quickBar.hidden = false;
+      if (quickBar) {
+        quickBar.hidden = false;
+        quickBar.querySelectorAll('a[href="/api/admin/export.csv"]').forEach(function (a) {
+          a.onclick = function (e) { e.preventDefault(); downloadCsv(); };
+        });
+        quickBar.querySelectorAll('a[href="/api/admin/calendar.ics"]').forEach(function (a) {
+          a.onclick = function (e) { e.preventDefault(); downloadIcs(); };
+        });
+      }
       document.getElementById("logout").hidden = false;
       if (userBadge && currentUser) {
         userBadge.textContent = currentUser.name + " (" + currentUser.role + ")";
@@ -1776,7 +2036,12 @@
             password: document.getElementById("admin-password").value
           }
         });
-        csrf = d.csrf;
+        csrf = d.csrf || "local-csrf";
+        adminToken = d.token || "";
+        try {
+          sessionStorage.setItem("carpeo_admin_csrf", csrf);
+          if (adminToken) sessionStorage.setItem("carpeo_admin_token", adminToken);
+        } catch (err) {}
         note("Bienvenue dans le back-office CARPEO.");
         enter();
       } catch (x) {
@@ -1789,6 +2054,10 @@
   if (logoutBtn) {
     logoutBtn.onclick = async function () {
       await api("/api/auth/logout", { method: "POST" }).catch(function () {});
+      try {
+        sessionStorage.removeItem("carpeo_admin_csrf");
+        sessionStorage.removeItem("carpeo_admin_token");
+      } catch (err) {}
       location.reload();
     };
   }

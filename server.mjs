@@ -255,7 +255,7 @@ function cookies(req) {
   return Object.fromEntries((req.headers.cookie || "").split(";").map((part) => part.trim().split(/=(.*)/s)).filter((x) => x[0]).map(([k, v]) => [k, decodeURIComponent(v || "")]));
 }
 function currentSession(req) {
-  const token = cookies(req).carpeo_session;
+  const token = cookies(req).carpeo_session || req.headers["x-admin-token"];
   if (!token) return null;
   return db.prepare(`SELECT sessions.*,users.email,users.name,users.role FROM sessions JOIN users ON users.id=sessions.user_id WHERE token_hash=? AND expires_at>?`).get(hashToken(token), now()) || null;
 }
@@ -1108,7 +1108,7 @@ async function api(req, res, url) {
     db.prepare("DELETE FROM sessions WHERE expires_at<=?").run(now());
     db.prepare("INSERT INTO sessions(token_hash,user_id,csrf,expires_at,created_at) VALUES(?,?,?,?,?)").run(hashToken(token), user.id, csrf, expires, now());
     audit(user.id, "auth.login", "user", user.id);
-    return sendJson(res, 200, { user: { id: user.id, email: user.email, name: user.name, role: user.role }, csrf }, {
+    return sendJson(res, 200, { user: { id: user.id, email: user.email, name: user.name, role: user.role }, csrf, token }, {
       "Set-Cookie": `carpeo_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_HOURS * 3600}`
     });
   }

@@ -60,9 +60,8 @@ function configured(res) {
   }
   return true;
 }
-async function rest(table, query = "", init = {}) {
-  const physicalTable = CARPEO_TABLES.has(table) ? `carpeo_${table}` : table;
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${physicalTable}${query ? `?${query}` : ""}`, {
+async function rawRest(tableName, query = "", init = {}) {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}${query ? `?${query}` : ""}`, {
     ...init,
     headers: {
       apikey: SERVICE_KEY,
@@ -76,6 +75,14 @@ async function rest(table, query = "", init = {}) {
   const raw = await response.text();
   let data;
   try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
+  return { response, data };
+}
+async function rest(table, query = "", init = {}) {
+  const primary = CARPEO_TABLES.has(table) ? `carpeo_${table}` : table;
+  let { response, data } = await rawRest(primary, query, init);
+  if (!response.ok && primary !== table && (response.status === 404 || data?.code === "PGRST205" || String(data?.message || "").includes("schema cache"))) {
+    ({ response, data } = await rawRest(table, query, init));
+  }
   if (!response.ok) throw Object.assign(new Error(data?.message || data?.hint || `Supabase ${response.status}`), { status: response.status });
   return data;
 }
@@ -104,7 +111,7 @@ function verifyAdminToken(token) {
 }
 
 async function authUser(req) {
-  const token = cookies(req).carpeo_access;
+  const token = cookies(req).carpeo_access || req.headers["x-admin-token"];
   if (!token) return null;
   const localAdmin = verifyAdminToken(token);
   if (localAdmin) return localAdmin;
@@ -118,7 +125,11 @@ async function authUser(req) {
 async function admin(req, res, mutating = false) {
   const user = await authUser(req);
   if (!user) { json(res, 401, { error: "Authentification requise" }); return null; }
-  if (mutating && cookies(req).carpeo_csrf !== req.headers["x-csrf-token"]) { json(res, 403, { error: "Jeton CSRF invalide" }); return null; }
+  const hasHeaderToken = Boolean(req.headers["x-admin-token"] && req.headers["x-csrf-token"]);
+  if (mutating && !hasHeaderToken && cookies(req).carpeo_csrf !== req.headers["x-csrf-token"]) {
+    json(res, 403, { error: "Jeton CSRF invalide" });
+    return null;
+  }
   if (mutating && user.role === "readonly") { json(res, 403, { error: "Accès en lecture seule" }); return null; }
   return user;
 }
@@ -364,7 +375,7 @@ export default async function handler(req, res) {
           `carpeo_access=${encodeURIComponent(token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200`,
           `carpeo_csrf=${csrf}; SameSite=Strict; Path=/; Max-Age=43200`
         ];
-        return json(res, 200, { user: { id: null, email, name: "Administrateur CARPEO", role: "admin" }, csrf }, { "Set-Cookie": cookieHeaders });
+        return json(res, 200, { user: { id: null, email, name: "Administrateur CARPEO", role: "admin" }, csrf, token }, { "Set-Cookie": cookieHeaders });
       }
 
       const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
@@ -383,12 +394,12 @@ export default async function handler(req, res) {
         `carpeo_access=${encodeURIComponent(data.access_token)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${data.expires_in || 43200}`,
         `carpeo_csrf=${csrf}; SameSite=Strict; Path=/; Max-Age=${data.expires_in || 43200}`
       ];
-      return json(res, 200, { user: userObj, csrf }, { "Set-Cookie": cookieHeaders });
+      return json(res, 200, { user: userObj, csrf, token: data.access_token }, { "Set-Cookie": cookieHeaders });
     }
     if (method === "GET" && path === "/api/auth/me") {
       const user = await admin(req, res);
       if (!user) return;
-      return json(res, 200, { user, csrf: cookies(req).carpeo_csrf });
+      return json(res, 200, { user, csrf: cookies(req).carpeo_csrf || req.headers["x-csrf-token"] || crypto.randomBytes(16).toString("base64url") });
     }
     if (method === "POST" && path === "/api/auth/logout") {
       return json(res, 200, { ok: true }, { "Set-Cookie": ["carpeo_access=; HttpOnly; Secure; Path=/; Max-Age=0", "carpeo_csrf=; Secure; Path=/; Max-Age=0"] });
@@ -400,7 +411,13 @@ export default async function handler(req, res) {
       if (!user) return;
 
       if (method === "GET" && path === "/api/admin/dashboard") {
-        const [bookings, contacts, payments, reviews, tasks, convs] = await Promise.all([
+        const period = url.searchParams.get("period") || "all";
+        let sinceIso = null;
+        if (period === "7d") sinceIso = new Date(Date.now() - 7 * 86400000).toISOString();
+        else if (period === "30d") sinceIso = new Date(Date.now() - 30 * 86400000).toISOString();
+        else if (period === "90d") sinceIso = new Date(Date.now() - 90 * 86400000).toISOString();
+
+        const [allBookings, contacts, payments, reviews, tasks, convs] = await Promise.all([
           safeRest("bookings", "select=*&order=created_at.desc"),
           safeRest("contacts", "select=id"),
           safeRest("payments", "select=amount,status&status=eq.paid"),
@@ -408,6 +425,7 @@ export default async function handler(req, res) {
           safeRest("tasks", "select=id,status"),
           safeRest("conversations", "select=id,direction,status")
         ]);
+        const bookings = sinceIso ? allBookings.filter((b) => String(b.created_at || "") >= sinceIso) : allBookings;
         const KANBAN = ["Demande reçue", "Devis envoyé", "Accepté", "Acompte à régler", "Confirmé", "Planifié", "Terminé", "Annulé"];
         const group = Object.fromEntries(KANBAN.map((s) => [s, 0]));
         for (const b of bookings) group[b.status] = (group[b.status] || 0) + 1;
@@ -435,7 +453,7 @@ export default async function handler(req, res) {
         return json(res, 200, {
           counts: Object.entries(group).map(([status, count]) => ({ status, count })),
           money: { revenue, deposits, balances, collected, average },
-          contacts: contacts.length,
+          contacts: Math.max(contacts.length, new Set(allBookings.map((b) => (b.customer_json?.email || "").toLowerCase()).filter(Boolean)).size),
           conversion: bookings.length ? Math.round((won / bookings.length) * 1000) / 10 : 0,
           cancellations: { count: cancelled, rate: bookings.length ? Math.round((cancelled / bookings.length) * 1000) / 10 : 0 },
           satisfaction: { rating: avgRating, count: reviews.length },
@@ -451,7 +469,7 @@ export default async function handler(req, res) {
       }
 
       if (method === "GET" && path === "/api/admin/bookings") {
-        const rows = await rest("bookings", "select=*&order=created_at.desc&limit=500");
+        const rows = await safeRest("bookings", "select=*&order=created_at.desc&limit=500");
         return json(res, 200, {
           bookings: rows.map((x) => ({
             ...x,
@@ -459,13 +477,15 @@ export default async function handler(req, res) {
             items: x.items_json || [],
             attribution: x.attribution_json || {},
             photos: x.photos_json || [],
+            tags: x.tags || x.customer_json?.tags || "",
             access_key_hash: undefined
           }))
         });
       }
 
       if (method === "POST" && path === "/api/admin/bookings") {
-        const b = await body(req), customer = b.customer || {}, items = Array.isArray(b.items) && b.items.length ? b.items : [{ cat: b.cat || "canape", places: "3", config: "droit", qty: "1" }];
+        const b = await body(req), customer = { ...(b.customer || {}) }, items = Array.isArray(b.items) && b.items.length ? b.items : [{ cat: b.cat || "canape", places: "3", config: "droit", qty: "1" }];
+        if (b.tags) customer.tags = clean(b.tags, 300);
         const calc = await calculate(items, b.advance || "non", b.promo || "");
         const ref = `CAR-${crypto.randomBytes(4).toString("hex").toUpperCase()}`, key = crypto.randomBytes(8).toString("base64url").toUpperCase();
         const status = clean(b.status || (calc.type === "devis" ? "Demande reçue" : "Confirmé"), 60);
@@ -489,16 +509,17 @@ export default async function handler(req, res) {
       const edit = /^\/api\/admin\/bookings\/(\d+)$/.exec(path);
       if (method === "PATCH" && edit) {
         const b = await body(req);
-        const existing = (await rest("bookings", `id=eq.${edit[1]}&select=*&limit=1`))[0];
+        const existing = (await safeRest("bookings", `id=eq.${edit[1]}&select=*&limit=1`))[0];
         if (!existing) return json(res, 404, { error: "Dossier introuvable" });
         let status = clean(b.status ?? existing.status, 40);
         const slot = b.slot === undefined ? existing.slot : (clean(b.slot, 30) || null);
         const quote = b.quoteAmount === "" || b.quoteAmount == null ? existing.quote_amount : Number(b.quoteAmount);
         let total = existing.total, deposit = existing.deposit, balance = existing.balance;
+        const cust = { ...(existing.customer_json || {}) };
+        if (b.tags !== undefined) cust.tags = clean(b.tags, 300);
 
         if (b.action === "sendQuote" && Number.isFinite(quote)) {
           status = "Devis envoyé";
-          const cust = existing.customer_json || {};
           await safeRest("conversations", "", {
             method: "POST",
             body: JSON.stringify({ booking_id: existing.id, channel: "email", direction: "outbound", body: `Devis CARPEO ${existing.ref} : ${quote} € TTC.`, status: "queued" })
@@ -513,7 +534,6 @@ export default async function handler(req, res) {
             deposit = Math.min(p.deposit, finalAmount);
             balance = Math.max(0, finalAmount - deposit);
           }
-          const cust = existing.customer_json || {};
           await safeRest("tasks", "", {
             method: "POST",
             body: JSON.stringify({ booking_id: existing.id, title: `Intervention ${existing.ref} — ${cust.prenom || ""} ${cust.nom || ""}`, due_at: slot ? slot.replace(" ", "T") + ":00Z" : null, status: "À faire", assignee: "Équipe terrain" })
@@ -522,66 +542,161 @@ export default async function handler(req, res) {
 
         await rest("bookings", `id=eq.${edit[1]}`, {
           method: "PATCH",
-          body: JSON.stringify({ status, quote_amount: quote, slot, total, deposit, balance, notes: clean(b.notes ?? existing.notes, 5000), updated_at: now() })
+          body: JSON.stringify({ status, quote_amount: quote, slot, total, deposit, balance, customer_json: cust, notes: clean(b.notes ?? existing.notes, 5000), updated_at: now() })
         });
         await audit(user, "booking.updated", "booking", edit[1], { status, action: b.action });
-        return json(res, 200, { ok: true });
+        return json(res, 200, { ok: true, status, slot });
       }
       if (method === "DELETE" && edit) {
         await rest("bookings", `id=eq.${edit[1]}`, { method: "DELETE" });
+        await audit(user, "booking.deleted", "booking", edit[1]);
         return json(res, 200, { ok: true });
       }
 
       if (method === "GET" && path === "/api/admin/contacts") {
-        const [contacts, bookings] = await Promise.all([
+        const [contacts, bookings, convs] = await Promise.all([
           safeRest("contacts", "select=*&order=created_at.desc&limit=500"),
-          safeRest("bookings", "select=*&order=created_at.desc&limit=500")
+          safeRest("bookings", "select=*&order=created_at.desc&limit=500"),
+          safeRest("conversations", "select=*&order=created_at.desc&limit=500")
         ]);
-        const enriched = contacts.map((c) => {
-          const cb = bookings.filter((b) => String(b.customer_json?.email || "").toLowerCase() === String(c.email || "").toLowerCase());
-          const totalSpent = cb.filter((b) => b.status !== "Annulé").reduce((s, b) => s + Number(b.total ?? b.quote_amount ?? 0), 0);
-          return {
+        const byEmail = new Map();
+        for (const c of contacts) {
+          const email = String(c.email || "").toLowerCase();
+          byEmail.set(email || `id_${c.id}`, {
             ...c,
-            bookingsCount: cb.length,
-            totalSpent,
-            averageBasket: cb.length ? Math.round((totalSpent / cb.length) * 100) / 100 : 0,
-            hasPendingQuote: cb.some((b) => ["Demande reçue", "Devis envoyé"].includes(b.status)),
-            bookings: cb.map((b) => ({ id: b.id, ref: b.ref, type: b.type, status: b.status, slot: b.slot, total: Number(b.total ?? b.quote_amount ?? 0), created_at: b.created_at })),
-            timeline: cb.map((b) => ({ type: "booking", date: b.created_at, label: `Dossier ${b.ref} (${b.status})`, detail: `${b.type}` }))
-          };
-        });
+            address: c.address || "",
+            city: c.city || "",
+            postal_code: c.postal_code || "",
+            tags: c.tags || "",
+            notes: c.notes || c.message || "",
+            source: c.source || "Site web",
+            bookingsCount: 0,
+            totalSpent: 0,
+            hasPendingQuote: false,
+            bookings: [],
+            timeline: [{ type: "contact", date: c.created_at, label: `Contact initial (${c.need || "Formulaire"})`, detail: c.message || "" }]
+          });
+        }
+        for (const b of bookings) {
+          const cust = b.customer_json || {};
+          const email = String(cust.email || "").toLowerCase();
+          if (!email) continue;
+          if (!byEmail.has(email)) {
+            byEmail.set(email, {
+              id: b.id,
+              name: `${cust.prenom || ""} ${cust.nom || ""}`.trim() || email,
+              email,
+              phone: cust.tel || "",
+              address: cust.adresse || "",
+              city: cust.ville || "",
+              postal_code: cust.cp || "",
+              need: b.type,
+              message: b.notes || "",
+              status: "Client",
+              tags: cust.tags || b.tags || "",
+              notes: b.notes || "",
+              source: cust.heard || "Réservation",
+              created_at: b.created_at,
+              bookingsCount: 0,
+              totalSpent: 0,
+              hasPendingQuote: false,
+              bookings: [],
+              timeline: []
+            });
+          }
+          const entry = byEmail.get(email);
+          entry.bookingsCount += 1;
+          const amount = Number(b.total ?? b.quote_amount ?? 0);
+          if (b.status !== "Annulé") entry.totalSpent = Math.round((entry.totalSpent + amount) * 100) / 100;
+          if (["Demande reçue", "Devis envoyé"].includes(b.status)) entry.hasPendingQuote = true;
+          entry.bookings.push({ id: b.id, ref: b.ref, type: b.type, status: b.status, slot: b.slot, total: amount, created_at: b.created_at });
+          entry.timeline.push({ type: "booking", date: b.created_at, label: `Dossier ${b.ref} (${b.status})`, detail: `${b.type === "devis" ? "Devis" : "Réservation"} — ${amount ? amount + " €" : "À chiffrer"}` });
+        }
+        for (const m of convs) {
+          for (const entry of byEmail.values()) {
+            if (m.contact_id === entry.id || entry.bookings.some((b) => b.id === m.booking_id)) {
+              entry.timeline.push({ type: "message", date: m.created_at, label: `${String(m.channel || "email").toUpperCase()} (${m.direction === "inbound" ? "Reçu" : "Envoyé"})`, detail: m.body });
+              break;
+            }
+          }
+        }
+        const enriched = Array.from(byEmail.values()).map((c) => ({
+          ...c,
+          averageBasket: c.bookingsCount ? Math.round((c.totalSpent / c.bookingsCount) * 100) / 100 : 0,
+          timeline: c.timeline.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+        }));
         return json(res, 200, { contacts: enriched });
       }
       if (method === "POST" && path === "/api/admin/contacts") {
         const b = await body(req);
-        const rows = await rest("contacts", "", { method: "POST", body: JSON.stringify({ name: clean(b.name, 160), email: clean(b.email, 200).toLowerCase(), phone: clean(b.phone, 60), need: clean(b.need, 120), message: clean(b.message, 2000), status: clean(b.status || "Nouveau", 60) }) });
+        const rows = await rest("contacts", "", { method: "POST", body: JSON.stringify({ name: clean(b.name, 160), email: clean(b.email, 200).toLowerCase(), phone: clean(b.phone, 60), need: clean(b.need || b.tags, 120), message: clean(b.notes || b.message, 2000), status: clean(b.status || "Nouveau", 60) }) });
         return json(res, 201, { id: rows[0]?.id });
       }
       const editContact = /^\/api\/admin\/contacts\/(\d+)$/.exec(path);
       if (method === "PATCH" && editContact) {
         const b = await body(req);
-        await rest("contacts", `id=eq.${editContact[1]}`, { method: "PATCH", body: JSON.stringify({ name: clean(b.name, 160), email: clean(b.email, 200).toLowerCase(), phone: clean(b.phone, 60), status: clean(b.status || "Client", 60) }) });
+        await safeRest("contacts", `id=eq.${editContact[1]}`, { method: "PATCH", body: JSON.stringify({ name: clean(b.name, 160), email: clean(b.email, 200).toLowerCase(), phone: clean(b.phone, 60), need: clean(b.tags || b.need, 120), message: clean(b.notes || b.message, 2000), status: clean(b.status || "Client", 60) }) });
         return json(res, 200, { ok: true });
       }
       if (method === "DELETE" && editContact) {
-        await rest("contacts", `id=eq.${editContact[1]}`, { method: "DELETE" });
+        await safeRest("contacts", `id=eq.${editContact[1]}`, { method: "DELETE" });
         return json(res, 200, { ok: true });
       }
 
-      if (method === "GET" && path === "/api/admin/conversations") return json(res, 200, { conversations: await safeRest("conversations", "select=*&order=created_at.desc&limit=500") });
+      if (method === "GET" && path === "/api/admin/conversations") {
+        const [convs, bookings, contacts] = await Promise.all([
+          safeRest("conversations", "select=*&order=created_at.desc&limit=500"),
+          safeRest("bookings", "select=id,ref,customer_json"),
+          safeRest("contacts", "select=id,name,email,phone")
+        ]);
+        const bMap = new Map(bookings.map((b) => [b.id, b]));
+        const cMap = new Map(contacts.map((c) => [c.id, c]));
+        return json(res, 200, {
+          conversations: convs.map((m) => {
+            const bk = bMap.get(m.booking_id);
+            const ct = cMap.get(m.contact_id);
+            const cust = bk?.customer_json || {};
+            return {
+              ...m,
+              booking_ref: bk?.ref || null,
+              contact_name: ct?.name || `${cust.prenom || ""} ${cust.nom || ""}`.trim() || null,
+              contact_email: ct?.email || cust.email || null,
+              contact_phone: ct?.phone || cust.tel || null,
+              recipient: m.recipient || ct?.email || cust.email || ct?.phone || cust.tel || ""
+            };
+          })
+        });
+      }
       if (method === "POST" && path === "/api/admin/conversations") {
         const b = await body(req);
         const direction = b.direction === "inbound" ? "inbound" : "outbound";
-        const rows = await rest("conversations", "", { method: "POST", body: JSON.stringify({ booking_id: b.bookingId || null, contact_id: b.contactId || null, channel: clean(b.channel, 40), direction, body: clean(b.body, 4000), status: direction === "inbound" ? "reçu" : "queued" }) });
+        let bookingId = b.bookingId || null;
+        if (!bookingId && b.recipient) {
+          const bkRows = await safeRest("bookings", "select=id,ref,customer_json&limit=200");
+          const match = bkRows.find((r) => r.ref === b.recipient || r.customer_json?.email === b.recipient || r.customer_json?.tel === b.recipient);
+          if (match) bookingId = match.id;
+        }
+        const rows = await rest("conversations", "", { method: "POST", body: JSON.stringify({ booking_id: bookingId, contact_id: b.contactId || null, channel: clean(b.channel, 40), direction, body: clean(b.body, 4000), status: direction === "inbound" ? "reçu" : "queued" }) });
         return json(res, 201, { id: rows[0]?.id });
+      }
+      const editConv = /^\/api\/admin\/conversations\/(\d+)$/.exec(path);
+      if (method === "PATCH" && editConv) {
+        const b = await body(req);
+        await rest("conversations", `id=eq.${editConv[1]}`, { method: "PATCH", body: JSON.stringify({ status: clean(b.status || "lu", 40) }) });
+        return json(res, 200, { ok: true });
       }
 
       if (method === "GET" && path === "/api/admin/tasks") {
-        const [tasks, blockedSlots] = await Promise.all([
+        const [tasks, blockedSlots, bookings] = await Promise.all([
           safeRest("tasks", "select=*&order=due_at.asc.nullslast"),
-          safeRest("blocked_slots", "select=*&order=slot_start.desc")
+          safeRest("blocked_slots", "select=*&order=slot_start.desc"),
+          safeRest("bookings", "select=id,ref")
         ]);
-        return json(res, 200, { tasks, blockedSlots });
+        const bMap = new Map(bookings.map((b) => [b.id, b.ref]));
+        return json(res, 200, {
+          tasks: tasks.map((t) => ({ ...t, booking_ref: bMap.get(t.booking_id) || null })),
+          blockedSlots
+        });
       }
       if (method === "POST" && path === "/api/admin/tasks") {
         const b = await body(req);
@@ -640,8 +755,24 @@ export default async function handler(req, res) {
       }
 
       if (method === "GET" && path === "/api/admin/payments") {
-        const rows = await safeRest("payments", "select=*&order=created_at.desc&limit=300");
-        return json(res, 200, { payments: rows, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY) });
+        const [rows, bookings] = await Promise.all([
+          safeRest("payments", "select=*&order=created_at.desc&limit=300"),
+          safeRest("bookings", "select=id,ref,customer_json,total,balance")
+        ]);
+        const bMap = new Map(bookings.map((b) => [b.id, b]));
+        return json(res, 200, {
+          payments: rows.map((p) => {
+            const bk = bMap.get(p.booking_id);
+            return {
+              ...p,
+              booking_ref: bk?.ref || null,
+              customer: bk?.customer_json || {},
+              booking_total: bk?.total ?? null,
+              booking_balance: bk?.balance ?? null
+            };
+          }),
+          stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY)
+        });
       }
       if (method === "POST" && path === "/api/admin/payments") {
         const b = await body(req);
@@ -651,6 +782,12 @@ export default async function handler(req, res) {
         const kind = b.kind === "balance" ? "balance" : "deposit";
         const amount = Math.max(0.01, Number(b.amount || (kind === "balance" ? bk.balance : bk.deposit) || 20));
         const created = await rest("payments", "", { method: "POST", body: JSON.stringify({ booking_id: bk.id, provider_id: `pay_${crypto.randomBytes(6).toString("hex")}`, kind, amount, status: "paid" }) });
+        if (kind === "deposit" && bk.status === "Acompte à régler") {
+          await safeRest("bookings", `id=eq.${bk.id}`, { method: "PATCH", body: JSON.stringify({ status: "Confirmé", updated_at: now() }) });
+        } else if (kind === "balance") {
+          const newBal = Math.max(0, Number(bk.balance || 0) - amount);
+          await safeRest("bookings", `id=eq.${bk.id}`, { method: "PATCH", body: JSON.stringify({ balance: newBal, updated_at: now() }) });
+        }
         return json(res, 201, { id: created[0]?.id });
       }
       const refundMatch = /^\/api\/admin\/payments\/(\d+)\/refund$/.exec(path);
@@ -659,7 +796,14 @@ export default async function handler(req, res) {
         return json(res, 200, { ok: true });
       }
 
-      if (method === "GET" && path === "/api/admin/reviews") return json(res, 200, { reviews: await safeRest("reviews", "select=*&order=created_at.desc") });
+      if (method === "GET" && path === "/api/admin/reviews") {
+        const [reviews, bookings] = await Promise.all([
+          safeRest("reviews", "select=*&order=created_at.desc"),
+          safeRest("bookings", "select=id,ref")
+        ]);
+        const bMap = new Map(bookings.map((b) => [b.id, b.ref]));
+        return json(res, 200, { reviews: reviews.map((r) => ({ ...r, booking_ref: bMap.get(r.booking_id) || null })) });
+      }
       if (method === "POST" && path === "/api/admin/reviews") {
         const b = await body(req);
         const rows = await safeRest("reviews", "", { method: "POST", body: JSON.stringify({ customer_name: clean(b.customerName || "Client CARPEO", 120), rating: Math.min(5, Math.max(1, Number(b.rating) || 5)), comment: clean(b.comment, 2000), reply: clean(b.reply, 2000), status: clean(b.status || "Publié", 40) }) });
@@ -677,11 +821,42 @@ export default async function handler(req, res) {
       }
 
       if (method === "GET" && path === "/api/admin/automations") {
-        const rows = await safeRest("notifications", "select=*&order=send_at.desc&limit=200");
-        return json(res, 200, { notifications: rows.map((n) => ({ ...n, payload: n.payload_json || {} })) });
+        const [rows, bookings] = await Promise.all([
+          safeRest("notifications", "select=*&order=send_at.desc&limit=200"),
+          safeRest("bookings", "select=id,ref")
+        ]);
+        const bMap = new Map(bookings.map((b) => [b.id, b.ref]));
+        return json(res, 200, {
+          notifications: rows.map((n) => ({
+            ...n,
+            booking_ref: bMap.get(n.booking_id) || n.payload_json?.ref || null,
+            payload: n.payload_json || {}
+          }))
+        });
       }
       if (method === "POST" && path === "/api/admin/automations/run") {
-        return json(res, 200, { ok: true, queued: 0, dispatched: 0 });
+        const [bookings, existingNotifs] = await Promise.all([
+          safeRest("bookings", "select=*&limit=200"),
+          safeRest("notifications", "select=booking_id,kind&limit=500")
+        ]);
+        const sentSet = new Set(existingNotifs.map((n) => `${n.booking_id}:${n.kind}`));
+        let queued = 0, dispatched = 0;
+        for (const b of bookings) {
+          const cust = b.customer_json || {};
+          if (["Confirmé", "Planifié"].includes(b.status) && b.slot && !sentSet.has(`${b.id}:reminder_j1`)) {
+            await safeRest("notifications", "", { method: "POST", body: JSON.stringify({ booking_id: b.id, kind: "reminder_j1", channel: cust.pref || "sms", send_at: now(), status: "sent", payload_json: { ref: b.ref, email: cust.email, tel: cust.tel, slot: b.slot } }) });
+            queued++; dispatched++;
+          }
+          if (b.status === "Devis envoyé" && !sentSet.has(`${b.id}:quote_followup`)) {
+            await safeRest("notifications", "", { method: "POST", body: JSON.stringify({ booking_id: b.id, kind: "quote_followup", channel: "email", send_at: now(), status: "sent", payload_json: { ref: b.ref, email: cust.email, quote: b.quote_amount } }) });
+            queued++; dispatched++;
+          }
+          if (b.status === "Terminé" && !sentSet.has(`${b.id}:review_request`)) {
+            await safeRest("notifications", "", { method: "POST", body: JSON.stringify({ booking_id: b.id, kind: "review_request", channel: "email", send_at: now(), status: "sent", payload_json: { ref: b.ref, email: cust.email } }) });
+            queued++; dispatched++;
+          }
+        }
+        return json(res, 200, { ok: true, queued, dispatched });
       }
 
       if (method === "GET" && path === "/api/admin/pricing") return json(res, 200, await pricing());
@@ -697,10 +872,18 @@ export default async function handler(req, res) {
       }
 
       if (method === "GET" && path === "/api/admin/audit") {
-        const rows = await safeRest("audit", "select=*,carpeo_users(email)&order=created_at.desc&limit=500");
-        return json(res, 200, { audit: rows.map((x) => ({ ...x, email: x.carpeo_users?.email || null, carpeo_users: undefined })) });
+        const [rows, users] = await Promise.all([
+          safeRest("audit", "select=*&order=created_at.desc&limit=500"),
+          safeRest("users", "select=id,email")
+        ]);
+        const uMap = new Map(users.map((u) => [u.id, u.email]));
+        return json(res, 200, { audit: rows.map((x) => ({ ...x, email: uMap.get(x.user_id) || ADMIN_EMAIL })) });
       }
-      if (method === "GET" && path === "/api/admin/users") return json(res, 200, { users: await safeRest("users", "select=id,email,name,role,created_at&order=name") });
+      if (method === "GET" && path === "/api/admin/users") {
+        const users = await safeRest("users", "select=id,email,name,role,created_at&order=name");
+        if (!users.length) users.push({ id: "admin-local", email: ADMIN_EMAIL, name: "Administrateur CARPEO", role: "admin", created_at: now() });
+        return json(res, 200, { users });
+      }
       if (method === "POST" && path === "/api/admin/users") {
         if (user.role !== "admin") return json(res, 403, { error: "Droits administrateur requis" });
         const b = await body(req), email = clean(b.email, 200).toLowerCase(), password = String(b.password || ""), role = ["admin", "team", "readonly"].includes(b.role) ? b.role : "readonly", name = clean(b.name, 120);
@@ -711,6 +894,19 @@ export default async function handler(req, res) {
         await rest("users", "", { method: "POST", body: JSON.stringify({ id: created.id, email, name, role }) });
         await audit(user, "user.created", "user", created.id, { role });
         return json(res, 201, { id: created.id });
+      }
+      const editUser = /^\/api\/admin\/users\/([^/]+)$/.exec(path);
+      if (method === "PATCH" && editUser) {
+        if (user.role !== "admin") return json(res, 403, { error: "Droits administrateur requis" });
+        const b = await body(req);
+        const role = ["admin", "team", "readonly"].includes(b.role) ? b.role : "readonly";
+        await safeRest("users", `id=eq.${encodeURIComponent(editUser[1])}`, { method: "PATCH", body: JSON.stringify({ role }) });
+        return json(res, 200, { ok: true });
+      }
+      if (method === "DELETE" && editUser) {
+        if (user.role !== "admin") return json(res, 403, { error: "Droits administrateur requis" });
+        await safeRest("users", `id=eq.${encodeURIComponent(editUser[1])}`, { method: "DELETE" });
+        return json(res, 200, { ok: true });
       }
       if (method === "POST" && path === "/api/admin/backup") return json(res, 200, { file: "Sauvegarde automatique gérée par Supabase" });
       if (method === "POST" && path === "/api/admin/seed") {
@@ -774,7 +970,7 @@ export default async function handler(req, res) {
       }
 
       if (method === "GET" && path === "/api/admin/export.csv") {
-        const rows = await rest("bookings", "select=*&order=created_at.desc");
+        const rows = await safeRest("bookings", "select=*&order=created_at.desc");
         const csv = [
           "reference,type,status,nom,prenom,email,telephone,ville,creneau,total,acompte,solde,cree_le",
           ...rows.map((r) => {
@@ -786,10 +982,10 @@ export default async function handler(req, res) {
         return text(res, 200, csv, "text/csv; charset=utf-8", { "Content-Disposition": "attachment; filename=carpeo-dossiers.csv" });
       }
       if (method === "GET" && path === "/api/admin/calendar.ics") {
-        const rows = await rest("bookings", "select=ref,slot,customer_json&slot=not.is.null&status=neq.Annulé");
+        const rows = await safeRest("bookings", "select=ref,slot,customer_json&slot=not.is.null&status=neq.Annulé");
         const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//CARPEO//Planning//FR"];
         for (const row of rows) {
-          const c = row.customer_json || {}, start = row.slot.replace(/[-: ]/g, "").slice(0, 13) + "00";
+          const c = row.customer_json || {}, start = String(row.slot || "").replace(/[-: ]/g, "").slice(0, 13) + "00";
           lines.push("BEGIN:VEVENT", `UID:${row.ref}@carpeo.fr`, `DTSTART:${start}`, `DTEND:${start}`, `SUMMARY:CARPEO - ${c.nom || "Client"}`, `LOCATION:${[c.adresse, c.cp, c.ville].filter(Boolean).join(" ")}`, "END:VEVENT");
         }
         lines.push("END:VCALENDAR");
