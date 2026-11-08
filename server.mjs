@@ -199,6 +199,7 @@ function pricingPayload() {
     deposit: Number(settings.deposit || 20),
     area: settings.area || "Intervention à domicile",
     hours: settings.hours || "7 jours sur 7, de 9 h à 19 h",
+    updatedAt: Number(settings.admin_modified_at || 0),
     items
   };
 }
@@ -1527,6 +1528,7 @@ async function api(req, res, url) {
       if (body.deposit != null) {
         db.prepare("UPDATE settings SET value=?,updated_at=? WHERE key='deposit'").run(String(Math.max(0, Number(body.deposit) || 0)), now());
       }
+      db.prepare("INSERT INTO settings(key,value,updated_at) VALUES('admin_modified_at',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at").run(String(Date.now()), now());
       audit(session.user_id, "pricing.updated", "pricing", null);
       return sendJson(res, 200, pricingPayload());
     }
@@ -1588,8 +1590,9 @@ async function api(req, res, url) {
             .run(key, cleanText(value, 500), now());
         }
       }
+      db.prepare("INSERT INTO settings(key,value,updated_at) VALUES('admin_modified_at',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at").run(String(Date.now()), now());
       audit(session.user_id, "settings.updated", "settings", null);
-      return sendJson(res, 200, { ok: true });
+      return sendJson(res, 200, { ok: true, pricing: pricingPayload() });
     }
     if (method === "POST" && url.pathname === "/api/admin/backup") {
       const file = await backupDatabase();

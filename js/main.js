@@ -98,13 +98,21 @@
     });
 
     var cfg = window.CARPEO || {};
+    var pCache = (window.CARPEO_PRICING && window.CARPEO_PRICING.load && window.CARPEO_PRICING.load()) || {};
     document.querySelectorAll("[data-email]").forEach(function (el) {
       el.textContent = cfg.email;
       if (el.tagName === "A") el.href = "mailto:" + cfg.email;
     });
     document.querySelectorAll("[data-site]").forEach(function (el) { el.textContent = cfg.siteLabel; });
-    document.querySelectorAll("[data-area]").forEach(function (el) { el.textContent = cfg.area; });
-    document.querySelectorAll("[data-hours]").forEach(function (el) { el.textContent = cfg.hours; });
+    document.querySelectorAll("[data-area]").forEach(function (el) { el.textContent = pCache.area || cfg.area; });
+    document.querySelectorAll("[data-hours]").forEach(function (el) { el.textContent = pCache.hours || cfg.hours; });
+    if (window.CARPEO_PRICING && window.CARPEO_PRICING.ready) {
+      window.CARPEO_PRICING.ready.then(function (latest) {
+        if (!latest) return;
+        if (latest.area) document.querySelectorAll("[data-area]").forEach(function (el) { el.textContent = latest.area; });
+        if (latest.hours) document.querySelectorAll("[data-hours]").forEach(function (el) { el.textContent = latest.hours; });
+      });
+    }
     document.querySelectorAll("[data-phone]").forEach(function (el) {
       el.textContent = cfg.phone ? cfg.phone : "Numéro à confirmer";
     });

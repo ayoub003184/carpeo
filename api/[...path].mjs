@@ -182,7 +182,7 @@ function localDbRest(table, query = "", init = {}) {
   const items = Array.isArray(payload) ? payload : [payload];
 
   if (method === "POST") {
-    const conflictKey = params.get("on_conflict");
+    const conflictKey = params.get("on_conflict") || ((cleanTable === "settings" || cleanTable === "pricing") ? "key" : null);
     const inserted = [];
     for (const item of items) {
       if (conflictKey && item[conflictKey] != null) {
@@ -309,14 +309,13 @@ async function pricing() {
   ]);
   const setMap = Object.fromEntries((settings || []).map((x) => [x.key, x.value]));
   const items = {};
+  for (const [k, v] of Object.entries(PRICE_DEFAULTS)) items[k] = { label: v[0], group: v[1], mode: v[2], price: v[3] };
   for (const row of rows || []) items[row.key] = { label: row.label, group: row.group_name, mode: row.mode, price: Number(row.price) };
-  if (!Object.keys(items).length) {
-    for (const [k, v] of Object.entries(PRICE_DEFAULTS)) items[k] = { label: v[0], group: v[1], mode: v[2], price: v[3] };
-  }
   return {
     deposit: Number(setMap.deposit || 20),
     area: setMap.area && !setMap.area.includes("Île-de-France") && !setMap.area.includes("et en entreprise") ? setMap.area : "Intervention à domicile",
     hours: setMap.hours || "7 jours sur 7, de 9 h à 19 h",
+    updatedAt: Number(setMap.admin_modified_at || 0),
     items
   };
 }
@@ -1043,9 +1042,27 @@ export default async function handler(req, res) {
         if (user.role !== "admin") return json(res, 403, { error: "Droits administrateur requis" });
         const b = await body(req);
         for (const [k, v] of Object.entries(b.items || {})) {
-          if (PRICE_DEFAULTS[k]) await rest("pricing", `key=eq.${encodeURIComponent(k)}`, { method: "PATCH", body: JSON.stringify({ mode: v.mode === "price" ? "price" : "quote", price: Math.max(0, Number(v.price) || 0), updated_at: now() }) });
+          if (PRICE_DEFAULTS[k]) {
+            const def = PRICE_DEFAULTS[k];
+            await rest("pricing", "on_conflict=key", {
+              method: "POST",
+              prefer: "resolution=merge-duplicates",
+              body: JSON.stringify({ key: k, label: def[0], group_name: def[1], mode: v.mode === "price" ? "price" : "quote", price: Math.max(0, Number(v.price) || 0), updated_at: now() })
+            });
+          }
         }
-        if (b.deposit != null) await rest("settings", "key=eq.deposit", { method: "PATCH", body: JSON.stringify({ value: String(Math.max(0, Number(b.deposit) || 0)), updated_at: now() }) });
+        if (b.deposit != null) {
+          await rest("settings", "on_conflict=key", {
+            method: "POST",
+            prefer: "resolution=merge-duplicates",
+            body: JSON.stringify({ key: "deposit", value: String(Math.max(0, Number(b.deposit) || 0)), updated_at: now() })
+          });
+        }
+        await rest("settings", "on_conflict=key", {
+          method: "POST",
+          prefer: "resolution=merge-duplicates",
+          body: JSON.stringify({ key: "admin_modified_at", value: String(Date.now()), updated_at: now() })
+        });
         await audit(user, "pricing.updated", "pricing", null);
         return json(res, 200, await pricing());
       }
@@ -1143,9 +1160,10 @@ export default async function handler(req, res) {
         if (user.role !== "admin") return json(res, 403, { error: "Droits administrateur requis" });
         const b = await body(req);
         for (const [k, v] of Object.entries(b.settings || {})) {
-          await safeRest("settings", "", { method: "POST", prefer: "resolution=merge-duplicates", body: JSON.stringify({ key: k, value: clean(v, 500), updated_at: now() }) });
+          await safeRest("settings", "on_conflict=key", { method: "POST", prefer: "resolution=merge-duplicates", body: JSON.stringify({ key: k, value: clean(v, 500), updated_at: now() }) });
         }
-        return json(res, 200, { ok: true });
+        await safeRest("settings", "on_conflict=key", { method: "POST", prefer: "resolution=merge-duplicates", body: JSON.stringify({ key: "admin_modified_at", value: String(Date.now()), updated_at: now() }) });
+        return json(res, 200, { ok: true, pricing: await pricing() });
       }
 
       if (method === "GET" && path === "/api/admin/export.csv") {

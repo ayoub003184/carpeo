@@ -1864,6 +1864,26 @@
     ]);
     var defs = (window.CARPEO_PRICING && window.CARPEO_PRICING.definitions) || {};
     var settings = sData.settings || {};
+    try {
+      var localPricing = JSON.parse(localStorage.getItem("carpeo-pricing-v2") || "null");
+      if (localPricing && Number(localPricing.updatedAt || 0) > Number(pData.updatedAt || 0)) {
+        if (localPricing.deposit != null) pData.deposit = localPricing.deposit;
+        if (localPricing.items) {
+          Object.keys(localPricing.items).forEach(function (k) {
+            if (pData.items && pData.items[k]) {
+              pData.items[k].mode = localPricing.items[k].mode;
+              pData.items[k].price = localPricing.items[k].price;
+            }
+          });
+        }
+        if (localPricing.area) settings.area = localPricing.area;
+        if (localPricing.hours) settings.hours = localPricing.hours;
+      }
+      var localAdmin = JSON.parse(localStorage.getItem("carpeo-admin-store-v1") || "null");
+      if (localAdmin && localAdmin.settings && Number(localAdmin.settings.updatedAt || 0) > Number(pData.updatedAt || 0)) {
+        Object.assign(settings, localAdmin.settings);
+      }
+    } catch (e) {}
 
     var html =
       '<div class="grid-2" style="align-items:start;margin-bottom:1.25rem">' +
@@ -1948,31 +1968,61 @@
         var k = n.dataset.mode;
         items[k] = { mode: n.value, price: Number(document.querySelector('[data-price="' + k + '"]').value) || 0 };
       });
+      var newDeposit = Number(document.getElementById("deposit-admin").value) || 0;
+      var nowTs = Date.now();
       await api("/api/admin/pricing", {
         method: "PUT",
-        body: { deposit: Number(document.getElementById("deposit-admin").value) || 0, items: items }
+        body: { deposit: newDeposit, items: items }
       });
+      try {
+        var curPricing = JSON.parse(localStorage.getItem("carpeo-pricing-v2") || "null") || {};
+        curPricing.deposit = newDeposit;
+        curPricing.items = items;
+        curPricing.updatedAt = nowTs;
+        if (document.getElementById("set-area")) curPricing.area = document.getElementById("set-area").value;
+        if (document.getElementById("set-hours")) curPricing.hours = document.getElementById("set-hours").value;
+        localStorage.setItem("carpeo-pricing-v2", JSON.stringify(curPricing));
+        var st = localStore();
+        st.pricing = { deposit: newDeposit, items: items, area: curPricing.area, hours: curPricing.hours, updatedAt: nowTs };
+        saveLocalStore(st);
+      } catch (err) {}
       if (window.CARPEO_PRICING && window.CARPEO_PRICING.refresh) await window.CARPEO_PRICING.refresh();
-      note("Grille tarifaire et acompte mis à jour.");
+      note("Grille tarifaire et acompte mis à jour sur tout le site.");
     };
 
     document.getElementById("settings-form").onsubmit = async function (e) {
       e.preventDefault();
+      var newSettings = {
+        area: document.getElementById("set-area").value,
+        hours: document.getElementById("set-hours").value,
+        maps_url: document.getElementById("set-maps").value,
+        ga4_id: document.getElementById("set-ga4").value,
+        gtm_id: document.getElementById("set-gtm").value,
+        meta_pixel_id: document.getElementById("set-pixel").value,
+        google_ads_id: document.getElementById("set-gads").value
+      };
+      var nowTs = Date.now();
       await api("/api/admin/settings", {
         method: "PUT",
-        body: {
-          settings: {
-            area: document.getElementById("set-area").value,
-            hours: document.getElementById("set-hours").value,
-            maps_url: document.getElementById("set-maps").value,
-            ga4_id: document.getElementById("set-ga4").value,
-            gtm_id: document.getElementById("set-gtm").value,
-            meta_pixel_id: document.getElementById("set-pixel").value,
-            google_ads_id: document.getElementById("set-gads").value
-          }
-        }
+        body: { settings: newSettings }
       });
-      note("Paramètres enregistrés.");
+      try {
+        var curPricing = JSON.parse(localStorage.getItem("carpeo-pricing-v2") || "null") || (window.CARPEO_PRICING ? window.CARPEO_PRICING.load() : {});
+        curPricing.area = newSettings.area;
+        curPricing.hours = newSettings.hours;
+        curPricing.updatedAt = nowTs;
+        localStorage.setItem("carpeo-pricing-v2", JSON.stringify(curPricing));
+        var st = localStore();
+        st.settings = Object.assign({}, st.settings || {}, newSettings, { updatedAt: nowTs });
+        if (st.pricing) {
+          st.pricing.area = newSettings.area;
+          st.pricing.hours = newSettings.hours;
+          st.pricing.updatedAt = nowTs;
+        }
+        saveLocalStore(st);
+      } catch (err) {}
+      if (window.CARPEO_PRICING && window.CARPEO_PRICING.refresh) await window.CARPEO_PRICING.refresh();
+      note("Paramètres et horaires mis à jour sur tout le site.");
     };
 
     document.getElementById("user-form").onsubmit = async function (e) {

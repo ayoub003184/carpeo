@@ -56,4 +56,17 @@ test("Vercel API works end-to-end with fallback store, slots, vacation blocking,
   const reviews = await callApi("/api/reviews");
   assert.equal(reviews.status, 200);
   assert.ok(reviews.data.reviews.length >= 3);
+
+  // Update prices and hours in Admin and verify /api/pricing reflects them
+  const updPricing = await callApi("/api/admin/pricing", "PUT", { deposit: 25, items: { sofa2Straight: { mode: "price", price: 95 } } }, authHeaders);
+  assert.equal(updPricing.status, 200);
+  const updSettings = await callApi("/api/admin/settings", "PUT", { settings: { hours: "Lundi au samedi, 8 h à 20 h", area: "Intervention à domicile" } }, authHeaders);
+  assert.equal(updSettings.status, 200);
+
+  const pubPricing = await callApi("/api/pricing");
+  assert.equal(pubPricing.status, 200);
+  assert.equal(pubPricing.data.deposit, 25);
+  assert.equal(pubPricing.data.items.sofa2Straight.price, 95);
+  assert.equal(pubPricing.data.hours, "Lundi au samedi, 8 h à 20 h");
+  assert.ok(pubPricing.data.updatedAt > 0);
 });

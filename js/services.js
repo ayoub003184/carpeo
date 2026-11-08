@@ -54,17 +54,27 @@
     document.getElementById("pick-go").textContent = quote ? "Demander un devis" : "Continuer";
   }
 
-  document.addEventListener("DOMContentLoaded", async function () {
-    if (pricing && pricing.ready) await pricing.ready;
+  function renderCatalog() {
     var grid = document.getElementById("pick-grid");
     if (!grid) return;
     grid.innerHTML = catalog.map(function (entry, i) {
       return '<article class="pick"><div class="pick-ico">' + entry.icon + "</div><h3>" + entry.name + '</h3><p class="pick-price">' +
         pricing.display(entry.key) + '</p><div class="qty">' +
         '<button type="button" data-dec="' + i + '" aria-label="Retirer un ' + entry.name + '">−</button>' +
-        '<span data-n="' + i + '">0</span>' +
+        '<span data-n="' + i + '">' + (qty[i] || 0) + '</span>' +
         '<button type="button" data-inc="' + i + '" aria-label="Ajouter un ' + entry.name + '">+</button></div></article>';
     }).join("");
+    paint();
+  }
+
+  document.addEventListener("DOMContentLoaded", async function () {
+    renderCatalog();
+    if (pricing && pricing.ready) {
+      await pricing.ready;
+      renderCatalog();
+    }
+    var grid = document.getElementById("pick-grid");
+    if (!grid) return;
 
     grid.addEventListener("click", function (e) {
       var inc = e.target.closest("[data-inc]");
@@ -83,6 +93,6 @@
       });
       sessionStorage.setItem("carpeo-picks", JSON.stringify(picks));
     });
-    paint();
   });
+  window.addEventListener("storage", renderCatalog);
 })();
