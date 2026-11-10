@@ -1,4 +1,5 @@
-# Development files not needed for deployment
+# Local development and server files ignored by Vercel
+server.mjs
 data/
 test-data/
 tests/

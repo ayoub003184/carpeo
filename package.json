@@ -3,13 +3,12 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "main": "index.mjs",
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check index.mjs && node --check server.mjs && node --check api/[...path].mjs && node --check api/index.mjs && node --check js/booking.js && node --check js/admin.js"
+    "check": "node --check server.mjs && node --check api/[...path].mjs && node --check api/index.mjs && node --check js/booking.js && node --check js/admin.js"
   }
 }
