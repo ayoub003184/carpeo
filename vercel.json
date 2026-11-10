@@ -2,7 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "functions": {
-    "api/*.mjs": { "maxDuration": 30 }
+    "index.mjs": {
+      "includeFiles": "assets/**,css/**,js/**,*.html,*.webp,*.png,*.jpg,*.jpeg,*.svg,*.xml,*.txt,*.ico"
+    },
+    "api/*.mjs": {
+      "maxDuration": 30
+    }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.mjs" },

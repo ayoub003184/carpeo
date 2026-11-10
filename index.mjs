@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import apiHandler from "./api/[...path].mjs";
 
-const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -22,6 +22,21 @@ const TYPES = {
   ".pdf": "application/pdf"
 };
 
+function getCandidatePaths(cleanPath) {
+  const norm = path.normalize(cleanPath).replace(/^[/\\]+/, "").replace(/^(\.\.[\/\\])+/, "");
+  const roots = [
+    process.cwd(),
+    MODULE_DIR,
+    ...(process.env.LAMBDA_TASK_ROOT ? [process.env.LAMBDA_TASK_ROOT] : [])
+  ];
+  const list = [];
+  for (const r of roots) {
+    const full = path.join(r, norm);
+    if (!list.includes(full)) list.push(full);
+  }
+  return list;
+}
+
 export default async function handler(req, res) {
   const url = new URL(req.url || "/", "https://carpeo.vercel.app");
   let pathname = decodeURIComponent(url.pathname);
@@ -36,31 +51,40 @@ export default async function handler(req, res) {
     pathname = "/index.html";
   }
 
-  // Prevent directory traversal
-  const cleanPath = path.normalize(pathname).replace(/^(\.\.[\/\\])+/, "");
-  let filePath = path.join(ROOT, cleanPath);
+  const cleanPath = pathname.replace(/^[/\\]+/, "");
+  const candidates = getCandidatePaths(cleanPath);
 
-  try {
-    let fileStat = await stat(filePath).catch(() => null);
+  let targetPath = null;
+  let targetStat = null;
 
-    // Clean URLs support: try appending .html
-    if (!fileStat && !path.extname(filePath)) {
-      const htmlPath = filePath + ".html";
-      const htmlStat = await stat(htmlPath).catch(() => null);
-      if (htmlStat && htmlStat.isFile()) {
-        filePath = htmlPath;
-        fileStat = htmlStat;
+  for (const candidate of candidates) {
+    let s = await stat(candidate).catch(() => null);
+    if (s && s.isFile()) {
+      targetPath = candidate;
+      targetStat = s;
+      break;
+    }
+    // Clean URLs support: try appending .html if no extension
+    if (!path.extname(candidate)) {
+      const htmlCandidate = candidate + ".html";
+      s = await stat(htmlCandidate).catch(() => null);
+      if (s && s.isFile()) {
+        targetPath = htmlCandidate;
+        targetStat = s;
+        break;
       }
     }
+  }
 
-    if (!fileStat || !fileStat.isFile()) {
-      res.statusCode = 404;
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      return res.end("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>Page introuvable — CARPEO</title></head><body><h1>404 — Page introuvable</h1><p><a href=\"/\">Retour à l'accueil</a></p></body></html>");
-    }
+  if (!targetPath || !targetStat) {
+    res.statusCode = 404;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.end("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>404 — CARPEO</title></head><body><h1>404 — Fichier introuvable</h1><p><a href=\"/\">Retour à l'accueil</a></p></body></html>");
+  }
 
-    const data = await readFile(filePath);
-    const ext = path.extname(filePath).toLowerCase();
+  try {
+    const data = await readFile(targetPath);
+    const ext = path.extname(targetPath).toLowerCase();
 
     res.statusCode = 200;
     res.setHeader("Content-Type", TYPES[ext] || "application/octet-stream");
@@ -76,7 +100,7 @@ export default async function handler(req, res) {
 
     return res.end(data);
   } catch (err) {
-    console.error("Static file error:", err);
+    console.error("Read file error:", err);
     res.statusCode = 500;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     return res.end("Erreur interne du serveur");
