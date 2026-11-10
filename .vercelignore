@@ -1,5 +1,4 @@
-# Exclude local-only persistent server and local SQLite database from Vercel Serverless
-server.mjs
+# Development files not needed for deployment
 data/
 test-data/
 tests/

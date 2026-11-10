@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import handler from "../api/[...path].mjs";
 import indexHandler from "../api/index.mjs";
+import rootHandler from "../index.mjs";
 
 async function callApi(url, method = "GET", bodyObj = null, headers = {}) {
   const resHeaders = {};
@@ -102,4 +103,33 @@ test("Vercel API works end-to-end with fallback store, slots, vacation blocking,
   });
   const indexData = JSON.parse(indexPayload);
   assert.equal(indexData.ok, true);
+
+  // Verify root index.mjs serves root HTML, clean URLs, and API
+  async function callRoot(url) {
+    let status = 200, payload = "", headers = {};
+    const res = {
+      statusCode: 200,
+      setHeader(k, v) { headers[k.toLowerCase()] = v; },
+      end(v) { payload = v || ""; }
+    };
+    await rootHandler({ url, method: "GET", headers: {}, [Symbol.asyncIterator]: async function* () {} }, res);
+    return { status: res.statusCode, headers, payload: payload.toString() };
+  }
+
+  const rootRes = await callRoot("/");
+  assert.equal(rootRes.status, 200);
+  assert.ok(rootRes.headers["content-type"].includes("text/html"));
+  assert.ok(rootRes.payload.includes("CARPEO"));
+
+  const tarifsRes = await callRoot("/tarifs");
+  assert.equal(tarifsRes.status, 200);
+  assert.ok(tarifsRes.headers["content-type"].includes("text/html"));
+
+  const cssRes = await callRoot("/css/styles.css");
+  assert.equal(cssRes.status, 200);
+  assert.ok(cssRes.headers["content-type"].includes("text/css"));
+
+  const apiRes = await callRoot("/api/health");
+  assert.equal(apiRes.status, 200);
+  assert.ok(apiRes.payload.includes('"ok":true'));
 });
