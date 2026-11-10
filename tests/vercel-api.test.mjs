@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import handler from "../api/[...path].mjs";
+import indexHandler from "../api/index.mjs";
 
 async function callApi(url, method = "GET", bodyObj = null, headers = {}) {
   const resHeaders = {};
@@ -91,4 +92,14 @@ test("Vercel API works end-to-end with fallback store, slots, vacation blocking,
   const adminContacts = await callApi("/api/admin/contacts", "GET", null, authHeaders);
   assert.equal(adminContacts.status, 200);
   assert.ok(adminContacts.data.contacts.some((c) => c.email === "nadia.mansouri@example.fr"));
+
+  // Verify api/index.mjs works identically
+  let indexStatus = 0, indexPayload = "";
+  await indexHandler({ url: "/api/health", method: "GET", headers: {}, [Symbol.asyncIterator]: async function* () {} }, {
+    statusCode: 0,
+    setHeader() {},
+    end(v) { indexPayload = v || ""; }
+  });
+  const indexData = JSON.parse(indexPayload);
+  assert.equal(indexData.ok, true);
 });

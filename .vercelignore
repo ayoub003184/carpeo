@@ -1,0 +1,10 @@
+# Exclude local-only persistent server and local SQLite database from Vercel Serverless
+server.mjs
+data/
+test-data/
+tests/
+build_html.py
+Dockerfile
+.env
+.env.*
+scripts/
